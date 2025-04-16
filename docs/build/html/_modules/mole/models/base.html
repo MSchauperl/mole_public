@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mole.models.base &#8212; molE  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for mole.models.base</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">ABCMeta</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="kn">import</span> <span class="n">abstractmethod</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">import</span> <span class="nn">pytorch_lightning</span> <span class="k">as</span> <span class="nn">pl</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">import</span> <span class="nn">torch.nn</span> <span class="k">as</span> <span class="nn">nn</span>
+
+<span class="kn">from</span> <span class="nn">mole.metrics</span> <span class="kn">import</span> <span class="n">MetricsDict</span>
+
+<span class="c1"># Define type alias for configuration dictionaries</span>
+<span class="n">OptimizerConfig</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+<span class="n">SchedulerConfig</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+
+<span class="c1"># Type alias for PTL configure_optimizers return value</span>
+<span class="n">ConfiguredOptimizers</span> <span class="o">=</span> <span class="n">Tuple</span><span class="p">[</span>
+    <span class="n">List</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">],</span>
+    <span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">_LRScheduler</span><span class="p">]]]],</span>
+<span class="p">]</span>  <span class="c1"># noqa: E231</span>
+<span class="n">TensorDict</span> <span class="o">=</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Model">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model">[docs]</a>
+<span class="k">class</span> <span class="nc">Model</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">LightningModule</span><span class="p">,</span> <span class="n">metaclass</span><span class="o">=</span><span class="n">ABCMeta</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Defines an interface that provides:</span>
+<span class="sd">    - appropriate, scalable metric computation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="c1"># Changed optimizer and scheduler args to expect config dicts</span>
+        <span class="n">optimizer_cfg</span><span class="p">:</span> <span class="n">OptimizerConfig</span><span class="p">,</span>
+        <span class="n">metrics</span><span class="p">:</span> <span class="n">MetricsDict</span><span class="p">,</span>
+        <span class="n">scheduler_cfg</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">SchedulerConfig</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">checkpoint_path</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Base class for MolE models, subclassed from PyTorch Lightning LightningModule.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            optimizer_cfg: Dictionary containing configuration for the optimizer</span>
+<span class="sd">                           (e.g., {&#39;optimizer&#39;: &#39;AdamW&#39;, &#39;lr&#39;: 1e-4, &#39;weight_decay&#39;: 0.01}).</span>
+<span class="sd">            metrics: Dictionary of metrics.</span>
+<span class="sd">            scheduler_cfg: Optional dictionary containing configuration for the LR scheduler</span>
+<span class="sd">                           (e.g., {&#39;scheduler_type&#39;: &#39;linear_warmup&#39;, &#39;num_warmup_steps&#39;: 100}).</span>
+<span class="sd">            checkpoint_path: Optional path to a checkpoint for fine-tuning.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># Store the config dicts instead of partials</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_optimizer_cfg</span> <span class="o">=</span> <span class="n">optimizer_cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scheduler_cfg</span> <span class="o">=</span> <span class="n">scheduler_cfg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span> <span class="o">=</span> <span class="n">metrics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span> <span class="o">=</span> <span class="n">checkpoint_path</span>
+        <span class="c1"># Placeholder for the actual optimizer/scheduler instances created later</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="o">.</span><span class="n">_LRScheduler</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Model.prepare_data">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.prepare_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">prepare_data</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Download checkpoints for fine-tuning should be in here.</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">prepare_data</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Model.setup">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.setup">[docs]</a>
+    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Base behavior: load state dict from fine-tune ckpt, if applicable.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Add check if checkpoint file exists</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Checkpoint path specified but not found: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="c1"># Decide how to handle - error out or continue with random init?</span>
+                <span class="c1"># For now, log warning and proceed (model will be randomly initialized)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">state_dict</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+                    <span class="c1"># Simplify state_dict loading logic assuming standard PTL format</span>
+                    <span class="k">if</span> <span class="s2">&quot;state_dict&quot;</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="p">:</span>
+                        <span class="n">state_dict</span> <span class="o">=</span> <span class="n">state_dict</span><span class="p">[</span><span class="s2">&quot;state_dict&quot;</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># Handle cases where checkpoint might just be the state_dict itself</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                            <span class="s2">&quot;&#39;state_dict&#39; key not found in checkpoint, assuming checkpoint file *is* the state_dict.&quot;</span>
+                        <span class="p">)</span>
+
+                    <span class="c1"># Remove potential prefix (e.g., &#39;model.&#39;) added by Lightning</span>
+                    <span class="n">state_dict</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="n">k</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">&quot;model.&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">state_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">}</span>
+
+                    <span class="c1"># Handle potential mismatches in prediction head size during fine-tuning</span>
+                    <span class="c1"># (Example logic, might need adjustment based on actual head structure)</span>
+                    <span class="n">head_prefix</span> <span class="o">=</span> <span class="s2">&quot;prediction_head.&quot;</span>
+                    <span class="n">current_head_keys</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">head_prefix</span><span class="p">)</span>
+                    <span class="p">}</span>
+                    <span class="n">ckpt_head_keys</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">state_dict</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">head_prefix</span><span class="p">)</span>
+                    <span class="p">}</span>
+
+                    <span class="k">if</span> <span class="n">ckpt_head_keys</span> <span class="ow">and</span> <span class="n">current_head_keys</span><span class="p">:</span>
+                        <span class="c1"># Simple check: if output layer dimensions mismatch, remove head weights from checkpoint</span>
+                        <span class="n">output_layer_key_part</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="s2">&quot;.classifier.bias&quot;</span>  <span class="c1"># Example, adjust if layer name differs</span>
+                        <span class="p">)</span>
+                        <span class="n">ckpt_output_key</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+                            <span class="p">(</span>
+                                <span class="n">k</span>
+                                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ckpt_head_keys</span>
+                                <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">output_layer_key_part</span><span class="p">)</span>
+                            <span class="p">),</span>
+                            <span class="kc">None</span><span class="p">,</span>
+                        <span class="p">)</span>
+                        <span class="n">current_output_key</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+                            <span class="p">(</span>
+                                <span class="n">k</span>
+                                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">current_head_keys</span>
+                                <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">output_layer_key_part</span><span class="p">)</span>
+                            <span class="p">),</span>
+                            <span class="kc">None</span><span class="p">,</span>
+                        <span class="p">)</span>
+
+                        <span class="k">if</span> <span class="n">ckpt_output_key</span> <span class="ow">and</span> <span class="n">current_output_key</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="p">(</span>
+                                <span class="n">state_dict</span><span class="p">[</span><span class="n">ckpt_output_key</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>
+                                <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_dict</span><span class="p">()[</span><span class="n">current_output_key</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>
+                            <span class="p">):</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                                    <span class="sa">f</span><span class="s2">&quot;Prediction head shape mismatch for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="si">}</span><span class="s2">. &quot;</span>
+                                    <span class="sa">f</span><span class="s2">&quot;Removing head weights. Fine-tuning will train a new head.&quot;</span>
+                                <span class="p">)</span>
+                                <span class="n">keys_to_remove</span> <span class="o">=</span> <span class="p">[</span>
+                                    <span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">state_dict</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">head_prefix</span><span class="p">)</span>
+                                <span class="p">]</span>
+                                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys_to_remove</span><span class="p">:</span>
+                                    <span class="k">del</span> <span class="n">state_dict</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+                    <span class="n">load_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Loaded state_dict from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="si">}</span><span class="s2">. Load result: </span><span class="si">{</span><span class="n">load_result</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Failed to load state_dict from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">checkpoint_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span></div>
+
+                    <span class="c1"># Decide how to handle - error out or continue with random init?</span>
+                    <span class="c1"># For now, log error and proceed</span>
+
+        <span class="c1"># set padding embeddings to 0 for training</span>
+        <span class="c1"># This part assumes a specific model structure (&#39;self.model.MolE...&#39;).</span>
+        <span class="c1"># It should ideally be handled within the specific model&#39;s setup or init.</span>
+        <span class="c1"># Commenting out here as it&#39;s too specific for the base class.</span>
+        <span class="c1"># if stage == &quot;train&quot;:</span>
+        <span class="c1">#     with torch.no_grad():</span>
+        <span class="c1">#         # self.model.MolE.encoder.rel_embeddings.weight[0].fill_(0)</span>
+        <span class="c1">#         # self.model.MolE.embeddings.word_embeddings.weight[</span>
+        <span class="c1">#         #     getattr(self.model.config, &quot;padding_idx&quot;, 0)</span>
+        <span class="c1">#         # ].fill_(0)</span>
+        <span class="c1">#         pass # Model-specific setup should handle this</span>
+
+<div class="viewcode-block" id="Model.configure_optimizers">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.configure_optimizers">[docs]</a>
+    <span class="k">def</span> <span class="nf">configure_optimizers</span><span class="p">(</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="bp">self</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">,</span> <span class="n">ConfiguredOptimizers</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Constructs optimizer and learning rate scheduler from stored config dicts.&quot;&quot;&quot;</span>
+        <span class="c1"># --- Create Optimizer ---</span>
+        <span class="n">optimizer_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optimizer_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;optimizer&quot;</span><span class="p">,</span> <span class="s2">&quot;AdamW&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">lr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optimizer_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;lr&quot;</span><span class="p">)</span>
+        <span class="n">weight_decay</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optimizer_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;weight_decay&quot;</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;lr&#39; must be specified in optimizer_cfg&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Add more optimizers as needed</span>
+        <span class="k">if</span> <span class="n">optimizer_name</span> <span class="o">==</span> <span class="s2">&quot;adamw&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">AdamW</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="n">weight_decay</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">optimizer_name</span> <span class="o">==</span> <span class="s2">&quot;adam&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">lr</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="n">weight_decay</span>
+            <span class="p">)</span>  <span class="c1"># Adam has wd but often set to 0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported optimizer: </span><span class="si">{</span><span class="n">optimizer_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scheduler_cfg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># --- Create Scheduler ---</span>
+            <span class="n">scheduler_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scheduler_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;scheduler_type&quot;</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="n">num_warmup_steps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scheduler_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;num_warmup_steps&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">num_training_steps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scheduler_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                <span class="s2">&quot;num_training_steps&quot;</span>
+            <span class="p">)</span>  <span class="c1"># Required for linear decay</span>
+
+            <span class="k">if</span> <span class="n">scheduler_type</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span>  <span class="c1"># No scheduler</span>
+            <span class="k">elif</span> <span class="n">scheduler_type</span> <span class="o">==</span> <span class="s2">&quot;constant_warmup&quot;</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">mole.engine.schedulers</span> <span class="kn">import</span> <span class="p">(</span>
+                    <span class="n">get_constant_schedule_with_warmup</span><span class="p">,</span>
+                <span class="p">)</span>  <span class="c1"># Import locally</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">lr_scheduler</span> <span class="o">=</span> <span class="n">get_constant_schedule_with_warmup</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="p">,</span> <span class="n">num_warmup_steps</span><span class="o">=</span><span class="n">num_warmup_steps</span>
+                <span class="p">)</span>
+            <span class="k">elif</span> <span class="n">scheduler_type</span> <span class="o">==</span> <span class="s2">&quot;linear_warmup&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">num_training_steps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;&#39;num_training_steps&#39; must be provided in scheduler_cfg for linear_warmup scheduler.&quot;</span>
+                    <span class="p">)</span>
+                <span class="kn">from</span> <span class="nn">mole.engine.schedulers</span> <span class="kn">import</span> <span class="p">(</span>
+                    <span class="n">get_linear_schedule_with_warmup</span><span class="p">,</span>
+                <span class="p">)</span>  <span class="c1"># Import locally</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">lr_scheduler</span> <span class="o">=</span> <span class="n">get_linear_schedule_with_warmup</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="p">,</span>
+                    <span class="n">num_warmup_steps</span><span class="o">=</span><span class="n">num_warmup_steps</span><span class="p">,</span>
+                    <span class="n">num_training_steps</span><span class="o">=</span><span class="n">num_training_steps</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported scheduler type: </span><span class="si">{</span><span class="n">scheduler_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># PTL pattern</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">optimizer</span><span class="p">],</span> <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">&quot;scheduler&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">lr_scheduler</span><span class="p">,</span>
+                    <span class="s2">&quot;interval&quot;</span><span class="p">:</span> <span class="s2">&quot;step&quot;</span><span class="p">,</span>  <span class="c1"># Default interval to step</span>
+                <span class="p">}</span>
+            <span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="Model.update_metrics">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.update_metrics">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">update_metrics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outputs</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">,</span> <span class="n">batch</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update your metric states here. This will be called for every training and validation batch.</span>
+<span class="sd">        See `photosynthetic.training.core.metrics.MetricsDict` for more info.</span>
+
+<span class="sd">        At the end of each training step, metrics will be computed globally, logged, and reset.</span>
+<span class="sd">        For validation, metrics are accumulated on each rank over all validation batches. At the end of</span>
+<span class="sd">        the validation epoch, they will be computed globally, logged, and reset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Model.on_train_batch_end">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.on_train_batch_end">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_train_batch_end</span><span class="p">(</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">,</span>
+        <span class="n">batch</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">,</span>
+        <span class="n">batch_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        1. Calls `update_metrics`</span>
+<span class="sd">        2. Synchronizes / computes metrics across all ranks</span>
+<span class="sd">        3. Logs the metric values</span>
+<span class="sd">        4. Resets the metric states</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_metrics</span><span class="p">(</span><span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span> <span class="n">batch</span><span class="o">=</span><span class="n">batch</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_dict</span><span class="p">({</span><span class="s2">&quot;train_&quot;</span> <span class="o">+</span> <span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Model.on_validation_batch_end">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.on_validation_batch_end">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_validation_batch_end</span><span class="p">(</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">,</span>
+        <span class="n">batch</span><span class="p">:</span> <span class="n">TensorDict</span><span class="p">,</span>
+        <span class="n">batch_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">dataloader_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calls `update_metrics`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_metrics</span><span class="p">(</span><span class="n">outputs</span><span class="o">=</span><span class="n">outputs</span><span class="p">,</span> <span class="n">batch</span><span class="o">=</span><span class="n">batch</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Model.predict_step">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.predict_step">[docs]</a>
+    <span class="k">def</span> <span class="nf">predict_step</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">batch</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">batch_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">dataloader_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TensorDict</span><span class="p">:</span>
+        <span class="c1"># Assuming validation_step returns the desired output dict for prediction</span>
+        <span class="n">step_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">validation_step</span><span class="p">(</span><span class="n">batch</span><span class="o">=</span><span class="n">batch</span><span class="p">,</span> <span class="n">batch_idx</span><span class="o">=</span><span class="n">batch_idx</span><span class="p">)</span>  <span class="c1"># type: ignore[misc]</span>
+        <span class="c1"># Ensure predict_step returns a dictionary, even if validation_step doesn&#39;t</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="n">step_output</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+        <span class="p">):</span>  <span class="c1"># e.g. if validation_step just returns loss</span>
+            <span class="c1"># Need to define what predict_step should return. Maybe run forward pass again?</span>
+            <span class="c1"># For now, return an empty dict or raise error, as behavior is undefined.</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Predict step received Tensor from validation_step, returning empty dict.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="n">step_output</span> <span class="k">if</span> <span class="n">step_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="Model.on_validation_epoch_end">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.on_validation_epoch_end">[docs]</a>
+    <span class="k">def</span> <span class="nf">on_validation_epoch_end</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        1. Synchronizes / computes metrics across all ranks</span>
+<span class="sd">        2. Logs the metric values</span>
+<span class="sd">        3. Resets the metric states</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_dict</span><span class="p">({</span><span class="s2">&quot;val_&quot;</span> <span class="o">+</span> <span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">compute</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="Model.export_onnx">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.base.Model.export_onnx">[docs]</a>
+    <span class="k">def</span> <span class="nf">export_onnx</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Add check if self.model exists, as it&#39;s not initialized in base __init__</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                <span class="s2">&quot;Cannot export ONNX: self.model not found or not an nn.Module.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">filepath</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.ckpt&quot;</span><span class="p">,</span> <span class="s2">&quot;.onnx&quot;</span><span class="p">)</span>
+        <span class="c1"># Adjust path replacement if needed</span>
+        <span class="n">filepath</span> <span class="o">=</span> <span class="n">filepath</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;checkpoints&quot;</span><span class="p">,</span> <span class="s2">&quot;onnx_models&quot;</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">filepath</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">output_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span>
+        <span class="c1"># Infer input names from the model&#39;s forward signature if possible, or keep defaults</span>
+        <span class="n">input_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s2">&quot;input_ids&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;input_mask&quot;</span><span class="p">,</span>
+            <span class="s2">&quot;relative_pos&quot;</span><span class="p">,</span>
+        <span class="p">]</span>  <span class="c1"># Default if model forward isn&#39;t inspectable easily</span>
+
+        <span class="c1"># Create realistic input sample based on potential model config (if available)</span>
+        <span class="c1"># Defaults used here might need adjustment</span>
+        <span class="n">bs</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">seq_len</span> <span class="o">=</span> <span class="mi">64</span>  <span class="c1"># Example sequence length</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">input_sample</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;input_ids&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                    <span class="mi">0</span><span class="p">,</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;vocab_size&quot;</span><span class="p">,</span> <span class="mi">100</span><span class="p">),</span>
+                    <span class="p">(</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;input_mask&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+                <span class="s2">&quot;relative_pos&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span>
+                    <span class="mi">0</span><span class="p">,</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;max_relative_positions&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">}</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">&quot;Could not get model config for ONNX input sample generation. Using generic defaults.&quot;</span>
+            <span class="p">)</span>
+            <span class="n">input_sample</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s2">&quot;input_ids&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+                <span class="s2">&quot;input_mask&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+                <span class="s2">&quot;relative_pos&quot;</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">bs</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">,</span> <span class="n">seq_len</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+            <span class="p">}</span>
+
+        <span class="n">dynamic_axes_dict</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;input_ids&quot;</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;sequence_length&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;input_mask&quot;</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;sequence_length&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;relative_pos&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">,</span>
+                <span class="mi">1</span><span class="p">:</span> <span class="s2">&quot;sequence_length&quot;</span><span class="p">,</span>
+                <span class="mi">2</span><span class="p">:</span> <span class="s2">&quot;sequence_length&quot;</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="s2">&quot;output&quot;</span><span class="p">:</span> <span class="p">{</span><span class="mi">0</span><span class="p">:</span> <span class="s2">&quot;batch_size&quot;</span><span class="p">},</span>
+        <span class="p">}</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">to_onnx</span><span class="p">(</span>
+                <span class="n">filepath</span><span class="p">,</span>
+                <span class="n">input_sample</span><span class="p">,</span>
+                <span class="n">export_params</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">opset_version</span><span class="o">=</span><span class="mi">11</span><span class="p">,</span>  <span class="c1"># Specify opset version for compatibility</span>
+                <span class="n">dynamic_axes</span><span class="o">=</span><span class="n">dynamic_axes_dict</span><span class="p">,</span>
+                <span class="n">input_names</span><span class="o">=</span><span class="n">input_names</span><span class="p">,</span>
+                <span class="n">output_names</span><span class="o">=</span><span class="n">output_names</span><span class="p">,</span>
+                <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Model exported to ONNX format at </span><span class="si">{</span><span class="n">filepath</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to export model to ONNX: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">molE</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, MSchauperl.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

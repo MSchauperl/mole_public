@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mole.models.embeddings &#8212; molE  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for mole.models.embeddings</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">torch</span> <span class="kn">import</span> <span class="n">nn</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="c1"># Imports likely needed by BertEmbeddings</span>
+<span class="kn">from</span> <span class="nn">DeBERTa.deberta.ops</span> <span class="kn">import</span> <span class="n">LayerNorm</span>
+<span class="kn">from</span> <span class="nn">DeBERTa.deberta.ops</span> <span class="kn">import</span> <span class="n">MaskedLayerNorm</span>
+<span class="kn">from</span> <span class="nn">DeBERTa.deberta.ops</span> <span class="kn">import</span> <span class="n">StableDropout</span>
+
+<span class="c1"># Imports needed by AtomEnvEmbeddings</span>
+<span class="kn">from</span> <span class="nn">DeBERTa.deberta.cache_utils</span> <span class="kn">import</span> <span class="n">load_model_state</span>
+
+<span class="c1"># Update import for BertEncoder from nn.layers to models.encoders (assuming it will move there)</span>
+<span class="c1"># from mole.nn.layers import BertEncoder # OLD</span>
+<span class="c1"># Temporarily remove import if BertEncoder hasn&#39;t moved yet to avoid errors,</span>
+<span class="c1"># or point to correct future location if confident.</span>
+<span class="c1"># Let&#39;s assume it will be in mole.models.encoders based on plan</span>
+<span class="kn">from</span> <span class="nn">mole.models.encoders</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BertEncoder</span><span class="p">,</span>
+<span class="p">)</span>  <span class="c1"># NEW - Assuming BertEncoder will be moved here</span>
+
+<span class="c1"># Initialize logger for this module</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="c1"># Removed from mole/nn/layers.py</span>
+<div class="viewcode-block" id="BertEmbeddings">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.embeddings.BertEmbeddings">[docs]</a>
+<span class="k">class</span> <span class="nc">BertEmbeddings</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Construct the embeddings from word, position and token_type embeddings.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BertEmbeddings</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">padding_idx</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;padding_idx&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;embedding_size&quot;</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">word_embeddings</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span>
+            <span class="n">config</span><span class="o">.</span><span class="n">vocab_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span><span class="p">,</span> <span class="n">padding_idx</span><span class="o">=</span><span class="n">padding_idx</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">position_biased_input</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">&quot;position_biased_input&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># self.position_embeddings = nn.Embedding(config.max_position_embeddings, self.embedding_size)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">position_biased_input</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">position_embeddings</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">max_position_embeddings</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">config</span><span class="o">.</span><span class="n">type_vocab_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">token_type_embeddings</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Embedding</span><span class="p">(</span>
+                <span class="n">config</span><span class="o">.</span><span class="n">type_vocab_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span> <span class="o">!=</span> <span class="n">config</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">embed_proj</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LayerNorm</span> <span class="o">=</span> <span class="n">LayerNorm</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">,</span> <span class="n">config</span><span class="o">.</span><span class="n">layer_norm_eps</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dropout</span> <span class="o">=</span> <span class="n">StableDropout</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">hidden_dropout_prob</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_to_half</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+
+<div class="viewcode-block" id="BertEmbeddings.forward">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.embeddings.BertEmbeddings.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_ids</span><span class="p">,</span> <span class="n">token_type_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">position_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">seq_length</span> <span class="o">=</span> <span class="n">input_ids</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">position_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">position_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+                <span class="mi">0</span><span class="p">,</span> <span class="n">seq_length</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">input_ids</span><span class="o">.</span><span class="n">device</span>
+            <span class="p">)</span>
+            <span class="n">position_ids</span> <span class="o">=</span> <span class="n">position_ids</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand_as</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">token_type_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">token_type_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+
+        <span class="n">words_embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">word_embeddings</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+        <span class="n">position_embeddings</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">position_embeddings</span><span class="p">(</span><span class="n">position_ids</span><span class="o">.</span><span class="n">long</span><span class="p">())</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">position_biased_input</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="c1"># position_embeddings = self.position_embeddings(position_ids.long())</span>
+
+        <span class="n">embeddings</span> <span class="o">=</span> <span class="n">words_embeddings</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">type_vocab_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">token_type_embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">token_type_embeddings</span><span class="p">(</span><span class="n">token_type_ids</span><span class="p">)</span>
+            <span class="n">embeddings</span> <span class="o">+=</span> <span class="n">token_type_embeddings</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">position_biased_input</span><span class="p">:</span>
+            <span class="n">embeddings</span> <span class="o">+=</span> <span class="n">position_embeddings</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">embedding_size</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">hidden_size</span><span class="p">:</span>
+            <span class="n">embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embed_proj</span><span class="p">(</span><span class="n">embeddings</span><span class="p">)</span>
+        <span class="n">embeddings</span> <span class="o">=</span> <span class="n">MaskedLayerNorm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">,</span> <span class="n">embeddings</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>
+        <span class="n">embeddings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropout</span><span class="p">(</span><span class="n">embeddings</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;embeddings&quot;</span><span class="p">:</span> <span class="n">embeddings</span><span class="p">,</span> <span class="s2">&quot;position_embeddings&quot;</span><span class="p">:</span> <span class="n">position_embeddings</span><span class="p">}</span></div>
+</div>
+
+
+
+<span class="c1"># Added AtomEnvEmbeddings class definition</span>
+<div class="viewcode-block" id="AtomEnvEmbeddings">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.embeddings.AtomEnvEmbeddings">[docs]</a>
+<span class="k">class</span> <span class="nc">AtomEnvEmbeddings</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;AtomEnvEmbeddings is a DeBERTa encoder</span>
+<span class="sd">    This module is composed of the input embedding layer with stacked transformer layers with disentangled attention.</span>
+<span class="sd">    Parameters:</span>
+<span class="sd">        config: A model config class instance with the configuration to build a new model.</span>
+<span class="sd">        pre_trained: Path to a pre-trained model or None.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pre_trained</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">pre_trained</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">model_config</span> <span class="o">=</span> <span class="n">load_model_state</span><span class="p">(</span><span class="n">pre_trained</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">model_config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">:</span>
+                    <span class="c1"># Use getattr to avoid error if key doesn&#39;t exist in config</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span>
+                        <span class="s2">&quot;hidden_size&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;intermediate_size&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;num_attention_heads&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;num_hidden_layers&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;vocab_size&quot;</span><span class="p">,</span>
+                        <span class="s2">&quot;max_position_embeddings&quot;</span><span class="p">,</span>
+                    <span class="p">]:</span>
+                        <span class="nb">setattr</span><span class="p">(</span><span class="n">model_config</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">model_config</span><span class="p">)</span>
+
+        <span class="c1"># Ensure BertEmbeddings uses the potentially updated config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">embeddings</span> <span class="o">=</span> <span class="n">BertEmbeddings</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span> <span class="o">=</span> <span class="n">BertEncoder</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_trained</span> <span class="o">=</span> <span class="n">pre_trained</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply_state</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AtomEnvEmbeddings.forward">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.embeddings.AtomEnvEmbeddings.forward">[docs]</a>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_ids</span><span class="p">,</span>
+        <span class="n">input_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">attention_mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">token_type_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">output_all_encoded_layers</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">position_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">return_att</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">relative_pos</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="n">input_mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">input_mask</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">attention_mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">attention_mask</span> <span class="o">=</span> <span class="n">input_mask</span>
+        <span class="k">if</span> <span class="n">token_type_ids</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">token_type_ids</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">input_ids</span><span class="p">)</span>
+
+        <span class="n">ebd_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embeddings</span><span class="p">(</span>
+            <span class="n">input_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+            <span class="n">token_type_ids</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">),</span>
+            <span class="n">position_ids</span><span class="p">,</span>
+            <span class="n">input_mask</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">embedding_output</span> <span class="o">=</span> <span class="n">ebd_output</span><span class="p">[</span><span class="s2">&quot;embeddings&quot;</span><span class="p">]</span>
+        <span class="n">encoder_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">encoder</span><span class="p">(</span>
+            <span class="n">embedding_output</span><span class="p">,</span>
+            <span class="n">attention_mask</span><span class="p">,</span>
+            <span class="n">output_all_encoded_layers</span><span class="o">=</span><span class="n">output_all_encoded_layers</span><span class="p">,</span>
+            <span class="n">return_att</span><span class="o">=</span><span class="n">return_att</span><span class="p">,</span>
+            <span class="n">relative_pos</span><span class="o">=</span><span class="n">relative_pos</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">encoder_output</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">ebd_output</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">encoder_output</span></div>
+
+
+<div class="viewcode-block" id="AtomEnvEmbeddings.apply_state">
+<a class="viewcode-back" href="../../../mole.models.html#mole.models.embeddings.AtomEnvEmbeddings.apply_state">[docs]</a>
+    <span class="k">def</span> <span class="nf">apply_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_trained</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Ensure load_model_state handles potential errors</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">state</span><span class="p">,</span> <span class="n">config</span> <span class="o">=</span> <span class="n">load_model_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_trained</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="c1"># Use logger</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Error loading pre-trained state for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_trained</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+                <span class="c1"># Decide how to handle: raise error or continue without pre-trained weights?</span>
+                <span class="c1"># For now, let&#39;s return, effectively skipping pre-trained loading on error</span>
+                <span class="k">return</span>
+
+        <span class="c1"># Check if state is actually loaded before applying</span>
+        <span class="k">if</span> <span class="n">state</span><span class="p">:</span>
+            <span class="c1"># Use self.load_state_dict which is the standard PyTorch method</span>
+            <span class="n">load_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span>
+                <span class="n">state</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>  <span class="c1"># Use strict=False to ignore mismatches</span>
+            <span class="c1"># Log results</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Loading state dict for AtomEnvEmbeddings. Load result: </span><span class="si">{</span><span class="n">load_result</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># Update __all__</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;BertEmbeddings&quot;</span><span class="p">,</span> <span class="s2">&quot;AtomEnvEmbeddings&quot;</span><span class="p">]</span>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">molE</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">mole</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, MSchauperl.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

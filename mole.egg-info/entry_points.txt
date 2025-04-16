@@ -1,0 +1,3 @@
+[console_scripts]
+mole_predict = mole.cli.mole_predict:main
+mole_train = mole.cli.mole_train:main

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>mole.engine package &#8212; molE  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mole.models package" href="mole.models.html" />
+    <link rel="prev" title="mole.data.vocabularies package" href="mole.data.vocabularies.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="mole-engine-package">
+<h1>mole.engine package<a class="headerlink" href="#mole-engine-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.engine.evaluator">
+<span id="mole-engine-evaluator-module"></span><h2>mole.engine.evaluator module<a class="headerlink" href="#module-mole.engine.evaluator" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.engine.schedulers">
+<span id="mole-engine-schedulers-module"></span><h2>mole.engine.schedulers module<a class="headerlink" href="#module-mole.engine.schedulers" title="Link to this heading">¶</a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="mole.engine.schedulers.get_constant_schedule_with_warmup">
+<span class="sig-prename descclassname"><span class="pre">mole.engine.schedulers.</span></span><span class="sig-name descname"><span class="pre">get_constant_schedule_with_warmup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimizer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_warmup_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_epoch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.LambdaLR.html#torch.optim.lr_scheduler.LambdaLR" title="(in PyTorch v2.6)"><span class="pre">LambdaLR</span></a></span></span><a class="reference internal" href="_modules/mole/engine/schedulers.html#get_constant_schedule_with_warmup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.engine.schedulers.get_constant_schedule_with_warmup" title="Link to this definition">¶</a></dt>
+<dd><p>Create a schedule with a constant learning rate preceded by a warmup period during which the learning rate
+increases linearly between 0 and the initial lr set in the optimizer.
+:param optimizer: The optimizer for which to schedule the learning rate.
+:type optimizer: [<cite>~torch.optim.Optimizer</cite>]
+:param num_warmup_steps: The number of steps for the warmup phase.
+:type num_warmup_steps: <cite>int</cite>
+:param last_epoch: The index of the last epoch when resuming training.
+:type last_epoch: <cite>int</cite>, <em>optional</em>, defaults to -1</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><cite>torch.optim.lr_scheduler.LambdaLR</cite> with the appropriate schedule.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mole.engine.schedulers.get_linear_schedule_with_warmup">
+<span class="sig-prename descclassname"><span class="pre">mole.engine.schedulers.</span></span><span class="sig-name descname"><span class="pre">get_linear_schedule_with_warmup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">optimizer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_warmup_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_training_steps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_epoch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.optim.lr_scheduler.LambdaLR.html#torch.optim.lr_scheduler.LambdaLR" title="(in PyTorch v2.6)"><span class="pre">LambdaLR</span></a></span></span><a class="reference internal" href="_modules/mole/engine/schedulers.html#get_linear_schedule_with_warmup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.engine.schedulers.get_linear_schedule_with_warmup" title="Link to this definition">¶</a></dt>
+<dd><p>Create a schedule with a learning rate that decreases linearly from the initial lr set in the optimizer to 0, after
+a warmup period during which it increases linearly from 0 to the initial lr set in the optimizer.
+:param optimizer: The optimizer for which to schedule the learning rate.
+:type optimizer: [<cite>~torch.optim.Optimizer</cite>]
+:param num_warmup_steps: The number of steps for the warmup phase.
+:type num_warmup_steps: <cite>int</cite>
+:param num_training_steps: The total number of training steps.
+:type num_training_steps: <cite>int</cite>
+:param last_epoch: The index of the last epoch when resuming training.
+:type last_epoch: <cite>int</cite>, <em>optional</em>, defaults to -1</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><cite>torch.optim.lr_scheduler.LambdaLR</cite> with the appropriate schedule.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-mole.engine.trainer">
+<span id="mole-engine-trainer-module"></span><h2>mole.engine.trainer module<a class="headerlink" href="#module-mole.engine.trainer" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.engine.utils">
+<span id="mole-engine-utils-module"></span><h2>mole.engine.utils module<a class="headerlink" href="#module-mole.engine.utils" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.engine">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-mole.engine" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">molE</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">mole</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="mole.html">mole package</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">mole</a><ul>
+  <li><a href="mole.html">mole package</a><ul>
+      <li>Previous: <a href="mole.data.vocabularies.html" title="previous chapter">mole.data.vocabularies package</a></li>
+      <li>Next: <a href="mole.models.html" title="next chapter">mole.models package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, MSchauperl.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/mole.engine.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

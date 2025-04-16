@@ -1,0 +1,30 @@
+Metadata-Version: 2.1
+Name: mole
+Version: 0.1.0
+Summary: Recursion foundation model for chemistry based on transformers
+Home-page: https://github.com/recursionpharma/mole_public
+Author: Recursion Pharmaceuticals
+Author-email: devs@recursionpharma.com
+Keywords: 'mole'
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: deberta@ git+https://github.com/omendezlucio/DeBERTa.git
+Requires-Dist: hydra-core>=1.2.0
+Requires-Dist: lightning-fabric
+Requires-Dist: numcodecs
+Requires-Dist: numexpr
+Requires-Dist: numpy<2
+Requires-Dist: omegaconf
+Requires-Dist: onnx
+Requires-Dist: onnxruntime
+Requires-Dist: pyarrow
+Requires-Dist: pytorch-lightning>=2.1
+Requires-Dist: PyTDC
+Requires-Dist: rdkit-pypi
+Requires-Dist: tensorboardX
+Requires-Dist: torch
+Requires-Dist: torch-geometric
+Requires-Dist: wandb

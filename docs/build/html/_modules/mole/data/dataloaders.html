@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mole.data.dataloaders &#8212; molE  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/alabaster.css?v=12dfc556" />
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+   
+  <link rel="stylesheet" href="../../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for mole.data.dataloaders</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">pytorch_lightning</span> <span class="kn">import</span> <span class="n">LightningDataModule</span>
+<span class="kn">import</span> <span class="nn">tdc</span>
+<span class="kn">from</span> <span class="nn">torch_geometric.loader</span> <span class="kn">import</span> <span class="n">DataLoader</span>
+
+<span class="kn">from</span> <span class="nn">mole.data.datasets</span> <span class="kn">import</span> <span class="n">MolDataset</span>
+<span class="kn">from</span> <span class="nn">mole.data.vocabulary</span> <span class="kn">import</span> <span class="n">open_dictionary</span>
+
+
+<div class="viewcode-block" id="MolDataModule">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule">[docs]</a>
+<span class="k">class</span> <span class="nc">MolDataModule</span><span class="p">(</span><span class="n">LightningDataModule</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span>
+        <span class="n">vocabulary_inp</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">validation_data</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">MASK_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">UNK_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">CLS_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">radius_inp</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">useFeatures_inp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">use_class_weights</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">num_workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="n">folds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vocabulary_inp</span> <span class="o">=</span> <span class="n">vocabulary_inp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">validation_data</span> <span class="o">=</span> <span class="n">validation_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MASK_token</span> <span class="o">=</span> <span class="n">MASK_token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">UNK_token</span> <span class="o">=</span> <span class="n">UNK_token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">CLS_token</span> <span class="o">=</span> <span class="n">CLS_token</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">radius_inp</span> <span class="o">=</span> <span class="n">radius_inp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">useFeatures_inp</span> <span class="o">=</span> <span class="n">useFeatures_inp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_class_weights</span> <span class="o">=</span> <span class="n">use_class_weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span> <span class="o">=</span> <span class="n">batch_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span> <span class="o">=</span> <span class="n">num_workers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">folds</span> <span class="o">=</span> <span class="n">folds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prepare_data_per_node</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dictionary_inp</span> <span class="o">=</span> <span class="n">open_dictionary</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">vocabulary_inp</span><span class="p">,</span>
+            <span class="n">mask_token</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">MASK_token</span><span class="p">,</span>
+            <span class="n">unk_token</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">UNK_token</span><span class="p">,</span>
+            <span class="n">cls_token</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">CLS_token</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tdc_benchmark_dataset_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">y</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">tdc</span><span class="o">.</span><span class="n">benchmark_deprecated</span><span class="o">.</span><span class="n">benchmark_names</span><span class="p">[</span><span class="s2">&quot;admet_group&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">x</span>
+        <span class="p">]</span>
+
+<div class="viewcode-block" id="MolDataModule.prepare_data">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.prepare_data">[docs]</a>
+    <span class="k">def</span> <span class="nf">prepare_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Reserve to download data from cloud since it is run only in master node</span>
+        <span class="c1"># Download TDC data for ADMET Group</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tdc_benchmark_dataset_names</span><span class="p">:</span>
+                <span class="n">tdc</span><span class="o">.</span><span class="n">BenchmarkGroup</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;ADMET_Group&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.setup">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.setup">[docs]</a>
+    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stage</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">stage</span> <span class="o">==</span> <span class="s2">&quot;fit&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="c1"># Assign train/val datasets for use in dataloaders</span>
+            <span class="n">smiles_train</span><span class="p">,</span> <span class="n">labels_train</span><span class="p">,</span> <span class="n">smiles_val</span><span class="p">,</span> <span class="n">labels_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_smiles_labels</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">validation_data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">smiles_val</span><span class="p">,</span> <span class="n">labels_val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_smiles_labels</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">validation_data</span>
+                <span class="p">)</span>
+
+            <span class="c1"># Tran / Val datasets</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_train</span> <span class="o">=</span> <span class="n">MolDataset</span><span class="p">(</span>
+                <span class="n">smiles_train</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dictionary_inp</span><span class="p">,</span>
+                <span class="n">labels</span><span class="o">=</span><span class="n">labels_train</span><span class="p">,</span>
+                <span class="n">cls_token</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">radius_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">radius_inp</span><span class="p">,</span>
+                <span class="n">useFeatures_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">useFeatures_inp</span><span class="p">,</span>
+                <span class="n">use_class_weights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_class_weights</span><span class="p">,</span>
+            <span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_val</span> <span class="o">=</span> <span class="n">MolDataset</span><span class="p">(</span>
+                <span class="n">smiles_val</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dictionary_inp</span><span class="p">,</span>
+                <span class="n">labels</span><span class="o">=</span><span class="n">labels_val</span><span class="p">,</span>
+                <span class="n">cls_token</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">radius_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">radius_inp</span><span class="p">,</span>
+                <span class="n">useFeatures_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">useFeatures_inp</span><span class="p">,</span>
+                <span class="n">use_class_weights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_class_weights</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stage</span> <span class="o">==</span> <span class="s2">&quot;test&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">smiles_test</span><span class="p">,</span> <span class="n">labels_test</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_smiles_labels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_test</span> <span class="o">=</span> <span class="n">MolDataset</span><span class="p">(</span>
+                <span class="n">smiles_test</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dictionary_inp</span><span class="p">,</span>
+                <span class="n">labels</span><span class="o">=</span><span class="n">labels_test</span><span class="p">,</span>
+                <span class="n">cls_token</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">radius_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">radius_inp</span><span class="p">,</span>
+                <span class="n">useFeatures_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">useFeatures_inp</span><span class="p">,</span>
+                <span class="n">use_class_weights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_class_weights</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stage</span> <span class="o">==</span> <span class="s2">&quot;predict&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">smiles</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_smiles_labels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">smiles</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore[call-overload]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_predict</span> <span class="o">=</span> <span class="n">MolDataset</span><span class="p">(</span>
+                <span class="n">smiles</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dictionary_inp</span><span class="p">,</span>
+                <span class="n">labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">cls_token</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">radius_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">radius_inp</span><span class="p">,</span>
+                <span class="n">useFeatures_inp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">useFeatures_inp</span><span class="p">,</span>
+                <span class="n">use_class_weights</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">use_class_weights</span><span class="p">,</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.train_dataloader">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.train_dataloader">[docs]</a>
+    <span class="k">def</span> <span class="nf">train_dataloader</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the training dataloader.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataLoader</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_train</span><span class="p">,</span>
+            <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+            <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">num_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+            <span class="n">pin_memory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">drop_last</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.val_dataloader">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.val_dataloader">[docs]</a>
+    <span class="k">def</span> <span class="nf">val_dataloader</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the validation dataloader.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataLoader</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_val</span><span class="p">,</span>
+            <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+            <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">num_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+            <span class="n">pin_memory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.test_dataloader">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.test_dataloader">[docs]</a>
+    <span class="k">def</span> <span class="nf">test_dataloader</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the test dataloader.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataLoader</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_test</span><span class="p">,</span>
+            <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+            <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">num_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+            <span class="n">pin_memory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.predict_dataloader">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.predict_dataloader">[docs]</a>
+    <span class="k">def</span> <span class="nf">predict_dataloader</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns the prediction dataloader.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">DataLoader</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mol_predict</span><span class="p">,</span>
+            <span class="n">batch_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">batch_size</span><span class="p">,</span>
+            <span class="n">shuffle</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">num_workers</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">num_workers</span><span class="p">,</span>
+            <span class="n">pin_memory</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">drop_last</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MolDataModule.get_smiles_labels">
+<a class="viewcode-back" href="../../../mole.data.html#mole.data.dataloaders.MolDataModule.get_smiles_labels">[docs]</a>
+    <span class="k">def</span> <span class="nf">get_smiles_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data_path</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tdc_benchmark_dataset_names</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">,</span> <span class="nb">int</span>
+        <span class="p">):</span>
+            <span class="n">tdc_ADMET_group</span> <span class="o">=</span> <span class="n">tdc</span><span class="o">.</span><span class="n">BenchmarkGroup</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;ADMET_Group&quot;</span><span class="p">)</span>
+            <span class="n">train</span><span class="p">,</span> <span class="n">valid</span> <span class="o">=</span> <span class="n">tdc_ADMET_group</span><span class="o">.</span><span class="n">get_train_valid_split</span><span class="p">(</span>
+                <span class="n">benchmark</span><span class="o">=</span><span class="n">data_path</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">split_type</span><span class="o">=</span><span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">folds</span>
+            <span class="p">)</span>
+            <span class="n">smiles_train</span> <span class="o">=</span> <span class="n">train</span><span class="o">.</span><span class="n">Drug</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>
+            <span class="n">labels_train</span> <span class="o">=</span> <span class="n">train</span><span class="o">.</span><span class="n">Y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">smiles_val</span> <span class="o">=</span> <span class="n">valid</span><span class="o">.</span><span class="n">Drug</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>
+            <span class="n">labels_val</span> <span class="o">=</span> <span class="n">valid</span><span class="o">.</span><span class="n">Y</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">smiles_train</span><span class="p">,</span> <span class="n">labels_train</span><span class="p">,</span> <span class="n">smiles_val</span><span class="p">,</span> <span class="n">labels_val</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loader</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pd</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="s2">&quot;read_&quot;</span> <span class="o">+</span> <span class="n">data_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">loader</span><span class="p">(</span><span class="n">data_path</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="s2">&quot;folds&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+                <span class="n">df_train</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">folds</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">]</span>
+                <span class="n">df_val</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="o">.</span><span class="n">folds</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">]</span>
+
+                <span class="n">df_train</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s2">&quot;folds&quot;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">df_val</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s2">&quot;folds&quot;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+                <span class="n">smiles_train</span> <span class="o">=</span> <span class="n">df_train</span><span class="o">.</span><span class="n">smiles</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>
+                <span class="n">labels_train</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">df_train</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df_train</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
+                <span class="n">smiles_val</span> <span class="o">=</span> <span class="n">df_val</span><span class="o">.</span><span class="n">smiles</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>
+                <span class="n">labels_val</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">df_val</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df_val</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span>
+                    <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
+
+                <span class="k">return</span> <span class="n">smiles_train</span><span class="p">,</span> <span class="n">labels_train</span><span class="p">,</span> <span class="n">smiles_val</span><span class="p">,</span> <span class="n">labels_val</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="s2">&quot;folds&quot;</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                    <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="s2">&quot;folds&quot;</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">smiles_train</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">smiles</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;string[pyarrow]&quot;</span><span class="p">)</span>
+                <span class="n">labels_train</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="n">smiles_train</span><span class="p">,</span> <span class="n">labels_train</span><span class="p">,</span> <span class="n">smiles_train</span><span class="p">,</span> <span class="n">labels_train</span></div>
+</div>
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../../index.html">molE</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../modules.html">mole</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, MSchauperl.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

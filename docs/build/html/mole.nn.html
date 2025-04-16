@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>mole.nn package &#8212; molE  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="mole.models package" href="mole.models.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="mole-nn-package">
+<h1>mole.nn package<a class="headerlink" href="#mole-nn-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.nn.attention">
+<span id="mole-nn-attention-module"></span><h2>mole.nn.attention module<a class="headerlink" href="#module-mole.nn.attention" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mole.nn.attention.DisentangledSelfAttention">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mole.nn.attention.</span></span><span class="sig-name descname"><span class="pre">DisentangledSelfAttention</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mole/nn/attention.html#DisentangledSelfAttention"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.attention.DisentangledSelfAttention" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.attention.DisentangledSelfAttention.disentangled_attention_bias">
+<span class="sig-name descname"><span class="pre">disentangled_attention_bias</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">query_layer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_layer</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relative_pos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel_embeddings</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale_factor</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mole/nn/attention.html#DisentangledSelfAttention.disentangled_attention_bias"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.attention.DisentangledSelfAttention.disentangled_attention_bias" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.attention.DisentangledSelfAttention.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hidden_states</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_att</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_states</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relative_pos</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rel_embeddings</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mole/nn/attention.html#DisentangledSelfAttention.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.attention.DisentangledSelfAttention.forward" title="Link to this definition">¶</a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.attention.DisentangledSelfAttention.transpose_for_scores">
+<span class="sig-name descname"><span class="pre">transpose_for_scores</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_heads</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/mole/nn/attention.html#DisentangledSelfAttention.transpose_for_scores"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.attention.DisentangledSelfAttention.transpose_for_scores" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mole.nn.layers">
+<span id="mole-nn-layers-module"></span><h2>mole.nn.layers module<a class="headerlink" href="#module-mole.nn.layers" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mole.nn.layers.</span></span><span class="sig-name descname"><span class="pre">LayerNorm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">normalized_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.List" title="(in Python v3.13)"><span class="pre">List</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://pytorch.org/docs/stable/size.html#torch.Size" title="(in PyTorch v2.6)"><span class="pre">Size</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">elementwise_affine</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/torch/nn/modules/normalization.html#LayerNorm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.layers.LayerNorm" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></a></p>
+<p>Applies Layer Normalization over a mini-batch of inputs.</p>
+<p>This layer implements the operation as described in
+the paper <a class="reference external" href="https://arxiv.org/abs/1607.06450">Layer Normalization</a></p>
+<div class="math notranslate nohighlight">
+\[y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} * \gamma + \beta\]</div>
+<p>The mean and standard-deviation are calculated over the last <cite>D</cite> dimensions, where <cite>D</cite>
+is the dimension of <a class="reference internal" href="#mole.nn.layers.LayerNorm.normalized_shape" title="mole.nn.layers.LayerNorm.normalized_shape"><code class="xref py py-attr docutils literal notranslate"><span class="pre">normalized_shape</span></code></a>. For example, if <a class="reference internal" href="#mole.nn.layers.LayerNorm.normalized_shape" title="mole.nn.layers.LayerNorm.normalized_shape"><code class="xref py py-attr docutils literal notranslate"><span class="pre">normalized_shape</span></code></a>
+is <code class="docutils literal notranslate"><span class="pre">(3,</span> <span class="pre">5)</span></code> (a 2-dimensional shape), the mean and standard-deviation are computed over
+the last 2 dimensions of the input (i.e. <code class="docutils literal notranslate"><span class="pre">input.mean((-2,</span> <span class="pre">-1))</span></code>).
+<span class="math notranslate nohighlight">\(\gamma\)</span> and <span class="math notranslate nohighlight">\(\beta\)</span> are learnable affine transform parameters of
+<a class="reference internal" href="#mole.nn.layers.LayerNorm.normalized_shape" title="mole.nn.layers.LayerNorm.normalized_shape"><code class="xref py py-attr docutils literal notranslate"><span class="pre">normalized_shape</span></code></a> if <a class="reference internal" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="mole.nn.layers.LayerNorm.elementwise_affine"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code></a> is <code class="docutils literal notranslate"><span class="pre">True</span></code>.
+The variance is calculated via the biased estimator, equivalent to
+<cite>torch.var(input, unbiased=False)</cite>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Unlike Batch Normalization and Instance Normalization, which applies
+scalar scale and bias for each entire channel/plane with the
+<code class="xref py py-attr docutils literal notranslate"><span class="pre">affine</span></code> option, Layer Normalization applies per-element scale and
+bias with <a class="reference internal" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="mole.nn.layers.LayerNorm.elementwise_affine"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code></a>.</p>
+</div>
+<p>This layer uses statistics computed from input data in both training and
+evaluation modes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>normalized_shape</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><em>int</em></a><em> or </em><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.13)"><em>list</em></a><em> or </em><a class="reference external" href="https://pytorch.org/docs/stable/size.html#torch.Size" title="(in PyTorch v2.6)"><em>torch.Size</em></a>) – <p>input shape from an expected input
+of size</p>
+<div class="math notranslate nohighlight">
+\[[* \times \text{normalized\_shape}[0] \times \text{normalized\_shape}[1]
+    \times \ldots \times \text{normalized\_shape}[-1]]\]</div>
+<p>If a single integer is used, it is treated as a singleton list, and this module will
+normalize over the last dimension which is expected to be of that specific size.</p>
+</p></li>
+<li><p><strong>eps</strong> – a value added to the denominator for numerical stability. Default: 1e-5</p></li>
+<li><p><strong>elementwise_affine</strong> – a boolean value that when set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, this module
+has learnable per-element affine parameters initialized to ones (for weights)
+and zeros (for biases). Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
+<li><p><strong>bias</strong> – If set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, the layer will not learn an additive bias (only relevant if
+<a class="reference internal" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="mole.nn.layers.LayerNorm.elementwise_affine"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code></a> is <code class="docutils literal notranslate"><span class="pre">True</span></code>). Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.weight">
+<span class="sig-name descname"><span class="pre">weight</span></span><a class="headerlink" href="#mole.nn.layers.LayerNorm.weight" title="Link to this definition">¶</a></dt>
+<dd><p>the learnable weights of the module of shape
+<span class="math notranslate nohighlight">\(\text{normalized\_shape}\)</span> when <a class="reference internal" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="mole.nn.layers.LayerNorm.elementwise_affine"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code></a> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.
+The values are initialized to 1.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.bias">
+<span class="sig-name descname"><span class="pre">bias</span></span><a class="headerlink" href="#mole.nn.layers.LayerNorm.bias" title="Link to this definition">¶</a></dt>
+<dd><p>the learnable bias of the module of shape
+<span class="math notranslate nohighlight">\(\text{normalized\_shape}\)</span> when <a class="reference internal" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="mole.nn.layers.LayerNorm.elementwise_affine"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elementwise_affine</span></code></a> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.
+The values are initialized to 0.</p>
+</dd></dl>
+
+<dl class="simple">
+<dt>Shape:</dt><dd><ul class="simple">
+<li><p>Input: <span class="math notranslate nohighlight">\((N, *)\)</span></p></li>
+<li><p>Output: <span class="math notranslate nohighlight">\((N, *)\)</span> (same shape as input)</p></li>
+</ul>
+</dd>
+</dl>
+<p>Examples:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="c1"># NLP Example</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">batch</span><span class="p">,</span> <span class="n">sentence_length</span><span class="p">,</span> <span class="n">embedding_dim</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">embedding</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">sentence_length</span><span class="p">,</span> <span class="n">embedding_dim</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer_norm</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">(</span><span class="n">embedding_dim</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Activate module</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer_norm</span><span class="p">(</span><span class="n">embedding</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Image Example</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">N</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">input</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># Normalize over the last three dimensions (i.e. the channel and spatial dimensions)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># as shown in the image below</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer_norm</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">LayerNorm</span><span class="p">([</span><span class="n">C</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">output</span> <span class="o">=</span> <span class="n">layer_norm</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
+</pre></div>
+</div>
+<a class="reference internal image-reference" href="../_static/img/nn/layer_norm.jpg"><img alt="../_static/img/nn/layer_norm.jpg" src="../_static/img/nn/layer_norm.jpg" />
+<aside class="system-message">
+<p class="system-message-title">System Message: WARNING/2 (<span class="docutils literal">/home/mschauperl/anaconda3/envs/mis_env/lib/python3.9/site-packages/torch/nn/modules/normalization.py:docstring of torch.nn.modules.normalization.LayerNorm</span>, line 77)</p>
+<p>Cannot scale image!
+  Could not get size from &quot;../_static/img/nn/layer_norm.jpg&quot;:
+  [Errno 2] No such file or directory: '../_static/img/nn/layer_norm.jpg'</p>
+</aside>
+</a>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.elementwise_affine">
+<span class="sig-name descname"><span class="pre">elementwise_affine</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.13)"><span class="pre">bool</span></a></em><a class="headerlink" href="#mole.nn.layers.LayerNorm.elementwise_affine" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.eps">
+<span class="sig-name descname"><span class="pre">eps</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.13)"><span class="pre">float</span></a></em><a class="headerlink" href="#mole.nn.layers.LayerNorm.eps" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.extra_repr">
+<span class="sig-name descname"><span class="pre">extra_repr</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.13)"><span class="pre">str</span></a></span></span><a class="reference internal" href="_modules/torch/nn/modules/normalization.html#LayerNorm.extra_repr"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.layers.LayerNorm.extra_repr" title="Link to this definition">¶</a></dt>
+<dd><p>Return the extra representation of the module.</p>
+<p>To print customized extra information, you should re-implement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">Tensor</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://pytorch.org/docs/stable/tensors.html#torch.Tensor" title="(in PyTorch v2.6)"><span class="pre">Tensor</span></a></span></span><a class="reference internal" href="_modules/torch/nn/modules/normalization.html#LayerNorm.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.layers.LayerNorm.forward" title="Link to this definition">¶</a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.normalized_shape">
+<span class="sig-name descname"><span class="pre">normalized_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.13)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.13)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#mole.nn.layers.LayerNorm.normalized_shape" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mole.nn.layers.LayerNorm.reset_parameters">
+<span class="sig-name descname"><span class="pre">reset_parameters</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.13)"><span class="pre">None</span></a></span></span><a class="reference internal" href="_modules/torch/nn/modules/normalization.html#LayerNorm.reset_parameters"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#mole.nn.layers.LayerNorm.reset_parameters" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-mole.nn.utils">
+<span id="mole-nn-utils-module"></span><h2>mole.nn.utils module<a class="headerlink" href="#module-mole.nn.utils" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-mole.nn">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-mole.nn" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">molE</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">mole</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="mole.html">mole package</a></li>
+</ul>
+</li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="modules.html">mole</a><ul>
+  <li><a href="mole.html">mole package</a><ul>
+      <li>Previous: <a href="mole.models.html" title="previous chapter">mole.models package</a></li>
+  </ul></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2025, MSchauperl.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.4.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/mole.nn.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
