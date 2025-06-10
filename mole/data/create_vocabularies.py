@@ -5,23 +5,245 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from tqdm import tqdm
 import argparse
+import multiprocessing as mp
+from functools import partial
+import math
+import glob
+
+
+def find_smiles_files(folder_path: str, verbose: bool = True):
+    """
+    Find all SMILES files in a folder without loading them.
+
+    Parameters:
+    -----------
+    folder_path : str
+        Path to folder containing SMILES files
+    verbose : bool
+        Print progress information
+
+    Returns:
+    --------
+    list : List of file paths
+    """
+    if verbose:
+        print(f"📂 Scanning folder: {folder_path}")
+
+    # Find all potential SMILES files
+    extensions = ["*.smiles", "*.smi", "*.txt", "*.csv"]
+    all_files = []
+
+    for ext in extensions:
+        pattern = os.path.join(folder_path, ext)
+        all_files.extend(glob.glob(pattern))
+
+        # Also check subdirectories
+        pattern = os.path.join(folder_path, "**", ext)
+        all_files.extend(glob.glob(pattern, recursive=True))
+
+    # Remove duplicates and sort
+    all_files = sorted(list(set(all_files)))
+
+    if verbose:
+        print(f"📋 Found {len(all_files)} potential SMILES files")
+        if len(all_files) <= 10:
+            for f in all_files:
+                print(f"   • {os.path.basename(f)}")
+        else:
+            for f in all_files[:5]:
+                print(f"   • {os.path.basename(f)}")
+            print(f"   • ... and {len(all_files)-5} more files")
+
+    return all_files
+
+
+# def stream_smiles_from_files(
+#     file_list: list, max_molecules: int = None, verbose: bool = True
+# ):
+#     """
+#     Stream SMILES from multiple files without loading all into memory.
+
+#     Parameters:
+#     -----------
+#     file_list : list
+#         List of file paths to process
+#     max_molecules : int, optional
+#         Maximum number of molecules to yield
+#     verbose : bool
+#         Print progress information
+
+#     Yields:
+#     -------
+#     str : SMILES string
+#     """
+#     molecules_yielded = 0
+
+#     for file_path in file_list:
+#         if max_molecules and molecules_yielded >= max_molecules:
+#             break
+
+#         try:
+#             with open(file_path, "r") as f:
+#                 file_molecules = 0
+#                 for line in f:
+#                     line = line.strip()
+#                     if line and not line.startswith(
+#                         "#"
+#                     ):  # Skip empty lines and comments
+#                         # Handle different file formats
+#                         if "\t" in line or "," in line:
+#                             # Take first column if tab/comma separated
+#                             smiles = line.split("\t")[0].split(",")[0].strip()
+#                         else:
+#                             smiles = line
+
+#                         if smiles:
+#                             yield smiles
+#                             molecules_yielded += 1
+#                             file_molecules += 1
+
+#                             if max_molecules and molecules_yielded >= max_molecules:
+#                                 break
+
+#                 if verbose and file_molecules > 0:
+#                     print(
+#                         f"   ✓ {os.path.basename(file_path)}: {file_molecules:,} molecules"
+#                     )
+
+#         except Exception as e:
+#             if verbose:
+#                 print(f"   ⚠️  Could not read {os.path.basename(file_path)}: {e}")
+#             continue
+
+
+def get_smiles_stream(input_path: str, max_molecules: int = None, verbose: bool = True):
+    """
+    Get SMILES stream from either a file or folder.
+
+    Parameters:
+    -----------
+    input_path : str
+        Path to SMILES file or folder containing SMILES files
+    max_molecules : int, optional
+        Maximum number of molecules to process
+    verbose : bool
+        Print progress information
+
+    Returns:
+    --------
+    generator : Generator yielding SMILES strings
+    """
+    if os.path.isfile(input_path):
+        # Single file
+        if verbose:
+            print(f"📄 Reading SMILES from file: {input_path}")
+
+        def file_generator():
+            molecules_yielded = 0
+            with open(input_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        # Handle different file formats
+                        if "\t" in line or "," in line:
+                            smiles = line.split("\t")[0].split(",")[0].strip()
+                        else:
+                            smiles = line
+
+                        if smiles:
+                            yield smiles
+                            molecules_yielded += 1
+
+                            if max_molecules and molecules_yielded >= max_molecules:
+                                break
+
+            if verbose:
+                print(f"📊 Streamed {molecules_yielded:,} molecules from file")
+
+        return file_generator()
+
+    elif os.path.isdir(input_path):
+        # Folder with multiple files
+        file_list = find_smiles_files(input_path, verbose)
+        if not file_list:
+            raise FileNotFoundError(f"No SMILES files found in folder: {input_path}")
+
+        return stream_smiles_from_files(file_list, max_molecules, verbose)
+
+    else:
+        raise FileNotFoundError(f"Input path not found: {input_path}")
+
+
+def process_smiles_chunk(smiles_chunk, radius, use_features):
+    """
+    Process a chunk of SMILES strings and return fingerprint counts.
+
+    Parameters:
+    -----------
+    smiles_chunk : list
+        List of SMILES strings to process
+    radius : int
+        Morgan fingerprint radius
+    use_features : bool
+        Whether to use atom features
+
+    Returns:
+    --------
+    tuple : (fingerprint_counts, valid_count, invalid_count)
+    """
+    fingerprint_counts = defaultdict(int)
+    valid_molecules = 0
+    invalid_molecules = 0
+
+    for smiles in smiles_chunk:
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                invalid_molecules += 1
+                continue
+
+            # Generate Morgan fingerprints
+            info = {}
+            AllChem.GetMorganFingerprint(
+                mol,
+                radius=radius,
+                bitInfo=info,
+                includeRedundantEnvironments=True,
+                useFeatures=use_features,
+            )
+
+            # Collect fingerprints for this radius level
+            for fingerprint_hash, atom_info_list in info.items():
+                for atom_idx, radius_level in atom_info_list:
+                    if radius_level == radius:
+                        fingerprint_counts[fingerprint_hash] += 1
+
+            valid_molecules += 1
+
+        except Exception:
+            invalid_molecules += 1
+
+    return fingerprint_counts, valid_molecules, invalid_molecules
 
 
 def create_guacamol_vocabularies(
-    smiles_file: str,
+    smiles_input: str,
     output_dir: str = "vocabularies",
     radii: list = [0, 1, 2],
     use_features_options: list = [False, True],
     max_molecules: int = None,
     verbose: bool = True,
+    n_processes: int = None,
+    chunk_size: int = None,
+    batch_size: int = None,
 ):
     """
     Create vocabulary files for GuacaMol dataset with different Morgan fingerprint settings.
 
     Parameters:
     -----------
-    smiles_file : str
-        Path to the SMILES file (e.g., 'data/guacamol_v1_all.smiles')
+    smiles_input : str
+        Path to SMILES file or folder containing SMILES files
     output_dir : str
         Directory to save vocabulary files
     radii : list
@@ -32,29 +254,43 @@ def create_guacamol_vocabularies(
         Limit number of molecules to process (for testing)
     verbose : bool
         Print progress information
+    n_processes : int, optional
+        Number of processes to use (default: CPU count)
+    chunk_size : int, optional
+        Size of chunks for multiprocessing (default: auto-calculated)
+    batch_size : int, optional
+        Size of batches to process from stream (default: 100,000 for memory efficiency)
 
     Returns:
     --------
     dict : Dictionary with vocabulary statistics
     """
 
+    # Set default number of processes
+    if n_processes is None:
+        n_processes = mp.cpu_count()
+
+    # Set default batch size for memory efficiency
+    if batch_size is None:
+        batch_size = 100000  # Process 100K molecules at a time
+
+    if verbose:
+        print(f"🚀 Using {n_processes} processes for parallel processing")
+        print(f"💾 Batch size: {batch_size:,} molecules (for memory efficiency)")
+
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    # Read SMILES file
-    if verbose:
-        print(f"📚 Reading SMILES from: {smiles_file}")
+    # # Get SMILES stream
+    # smiles_stream = get_smiles_stream(smiles_input, max_molecules, verbose)
 
-    with open(smiles_file, "r") as f:
-        smiles_list = [line.strip() for line in f.readlines() if line.strip()]
-
-    if max_molecules:
-        smiles_list = smiles_list[:max_molecules]
-        if verbose:
-            print(f"🔢 Processing first {max_molecules} molecules")
+    # Calculate optimal chunk size if not provided
+    if chunk_size is None:
+        # For batch processing, use smaller chunks
+        chunk_size = max(1000, batch_size // (n_processes * 4))
 
     if verbose:
-        print(f"📊 Total molecules to process: {len(smiles_list):,}")
+        print(f"📦 Chunk size: {chunk_size:,} molecules per chunk")
 
     # Statistics storage
     vocab_stats = {}
@@ -70,43 +306,105 @@ def create_guacamol_vocabularies(
                 print(f"\n🔬 Creating {vocab_name}")
                 print(f"   Radius: {radius}, UseFeatures: {use_features} ({env_type})")
 
-            # Collect all unique atom environments
+            # Process in batches to manage memory
             fingerprint_counts = defaultdict(int)
             valid_molecules = 0
             invalid_molecules = 0
+            batch_count = 0
 
-            # Process molecules with progress bar
-            for smiles in tqdm(
-                smiles_list, desc=f"Processing R{radius} {env_type[:4]}"
-            ):
-                try:
-                    mol = Chem.MolFromSmiles(smiles)
-                    if mol is None:
-                        invalid_molecules += 1
-                        continue
+            # Restart stream for each vocabulary
+            smiles_stream = get_smiles_stream(
+                smiles_input, max_molecules, verbose=False
+            )
 
-                    # Generate Morgan fingerprints
-                    info = {}
-                    AllChem.GetMorganFingerprint(
-                        mol,
-                        radius=radius,
-                        bitInfo=info,
-                        includeRedundantEnvironments=True,
-                        useFeatures=use_features,
+            current_batch = []
+            for smiles in smiles_stream:
+                current_batch.append(smiles)
+
+                # Process when batch is full
+                if len(current_batch) >= batch_size:
+                    batch_count += 1
+                    if verbose:
+                        print(
+                            f"   📊 Processing batch {batch_count} ({len(current_batch):,} molecules)..."
+                        )
+
+                    # Create chunks from current batch
+                    batch_chunks = [
+                        current_batch[i : i + chunk_size]
+                        for i in range(0, len(current_batch), chunk_size)
+                    ]
+
+                    # Process chunks in parallel
+                    process_func = partial(
+                        process_smiles_chunk, radius=radius, use_features=use_features
                     )
 
-                    # Collect fingerprints for this radius level
-                    for fingerprint_hash, atom_info_list in info.items():
-                        for atom_idx, radius_level in atom_info_list:
-                            if radius_level == radius:
-                                fingerprint_counts[fingerprint_hash] += 1
+                    with mp.Pool(n_processes) as pool:
+                        if verbose:
+                            results = list(
+                                tqdm(
+                                    pool.imap(process_func, batch_chunks),
+                                    total=len(batch_chunks),
+                                    desc=f"  Batch {batch_count}",
+                                )
+                            )
+                        else:
+                            results = pool.map(process_func, batch_chunks)
 
-                    valid_molecules += 1
+                    # Combine results from batch
+                    for chunk_fingerprints, chunk_valid, chunk_invalid in results:
+                        for fingerprint_hash, count in chunk_fingerprints.items():
+                            fingerprint_counts[fingerprint_hash] += count
 
-                except Exception as e:
-                    invalid_molecules += 1
-                    if verbose and invalid_molecules <= 5:  # Show first few errors
-                        print(f"⚠️  Error processing SMILES '{smiles}': {e}")
+                        valid_molecules += chunk_valid
+                        invalid_molecules += chunk_invalid
+
+                    # Clear batch to free memory
+                    current_batch = []
+
+            # Process remaining molecules in final batch
+            if current_batch:
+                batch_count += 1
+                if verbose:
+                    print(
+                        f"   📊 Processing final batch {batch_count} ({len(current_batch):,} molecules)..."
+                    )
+
+                batch_chunks = [
+                    current_batch[i : i + chunk_size]
+                    for i in range(0, len(current_batch), chunk_size)
+                ]
+
+                process_func = partial(
+                    process_smiles_chunk, radius=radius, use_features=use_features
+                )
+
+                with mp.Pool(n_processes) as pool:
+                    if verbose:
+                        results = list(
+                            tqdm(
+                                pool.imap(process_func, batch_chunks),
+                                total=len(batch_chunks),
+                                desc=f"  Final batch",
+                            )
+                        )
+                    else:
+                        results = pool.map(process_func, batch_chunks)
+
+                for chunk_fingerprints, chunk_valid, chunk_invalid in results:
+                    for fingerprint_hash, count in chunk_fingerprints.items():
+                        fingerprint_counts[fingerprint_hash] += count
+
+                    valid_molecules += chunk_valid
+                    invalid_molecules += chunk_invalid
+
+            if verbose:
+                print(f"   ✓ Valid molecules: {valid_molecules:,}")
+                print(f"   ✗ Invalid molecules: {invalid_molecules:,}")
+                print(
+                    f"   🔍 Unique atom environments found: {len(fingerprint_counts):,}"
+                )
 
             # Create vocabulary dictionary
             # Sort by frequency (most common first) for better token assignments
@@ -156,8 +454,6 @@ def create_guacamol_vocabularies(
                 print(
                     f"   💾 File size: {vocab_stats[vocab_name]['file_size_mb']:.2f} MB"
                 )
-                print(f"   ✓ Valid molecules: {valid_molecules:,}")
-                print(f"   ✗ Invalid molecules: {invalid_molecules:,}")
 
     # Print summary
     if verbose:
@@ -228,10 +524,10 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Create GuacaMol vocabularies")
     parser.add_argument(
-        "--smiles_file",
+        "--smiles_input",
         type=str,
         default="data/guacamol_v1_all.smiles",
-        help="Path to SMILES file",
+        help="Path to SMILES file or folder containing SMILES files",
     )
     parser.add_argument(
         "--output_dir",
@@ -257,6 +553,24 @@ def main():
         action="store_true",
         help="Skip functional environment vocabularies",
     )
+    parser.add_argument(
+        "--n_processes",
+        type=int,
+        default=None,
+        help="Number of processes to use (default: CPU count)",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=None,
+        help="Size of chunks for multiprocessing (default: auto-calculated)",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=None,
+        help="Size of batches to process from stream (default: 100,000 for memory efficiency)",
+    )
 
     args = parser.parse_args()
 
@@ -267,12 +581,15 @@ def main():
 
     # Create vocabularies
     vocab_stats = create_guacamol_vocabularies(
-        smiles_file=args.smiles_file,
+        smiles_input=args.smiles_input,
         output_dir=args.output_dir,
         radii=args.radii,
         use_features_options=use_features_options,
         max_molecules=args.max_molecules,
         verbose=True,
+        n_processes=args.n_processes,
+        chunk_size=args.chunk_size,
+        batch_size=args.batch_size,
     )
 
     # Analyze differences
