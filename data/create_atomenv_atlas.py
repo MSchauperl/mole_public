@@ -62,7 +62,9 @@ class AtomEnvAtlasGenerator:
 
         # Data storage
         self.vocabulary = {}
-        self.atom_env_examples = {}  # atom_env_hash -> (smiles, atom_idx, element)
+        self.atom_env_examples = (
+            {}
+        )  # atom_env_hash -> (smiles, atom_idx, element, functional_hash)
 
     def load_vocabulary(self) -> Dict:
         """Load the atom environment vocabulary."""
@@ -119,6 +121,37 @@ class AtomEnvAtlasGenerator:
             print(f"⚠️  Error getting atom environments: {e}")
             return []
 
+    def get_functional_atom_environments(
+        self, mol: Chem.Mol, radius: int = 0
+    ) -> List[Tuple[int, int]]:
+        """
+        Get functional atom environments for a molecule (using atom features).
+
+        Args:
+            mol: RDKit molecule
+            radius: Environment radius
+
+        Returns:
+            List of (atom_idx, functional_env_hash) tuples
+        """
+        if mol is None:
+            return []
+
+        try:
+            # Generate Morgan fingerprints for each atom with features (functional)
+            fp_info = {}
+            AllChem.GetMorganFingerprint(mol, radius, useFeatures=True, bitInfo=fp_info)
+
+            atom_envs = []
+            for env_hash, atom_lists in fp_info.items():
+                for atom_idx, _ in atom_lists:
+                    atom_envs.append((atom_idx, env_hash))
+
+            return atom_envs
+        except Exception as e:
+            print(f"⚠️  Error getting functional atom environments: {e}")
+            return []
+
     def scan_for_examples(self):
         """Scan SMILES file to find example molecules for each atom environment."""
         print(f"🔍 Scanning {self.smiles_file} for atom environment examples")
@@ -158,15 +191,33 @@ class AtomEnvAtlasGenerator:
                 if mol is None:
                     continue
 
-                # Get atom environments for this molecule
+                # Get atom environments for this molecule (structural)
                 atom_envs_in_mol = self.get_atom_environments(mol, radius=0)
+
+                # Get functional atom environments for this molecule
+                functional_envs_in_mol = self.get_functional_atom_environments(
+                    mol, radius=0
+                )
+                functional_env_dict = {
+                    atom_idx: func_hash
+                    for atom_idx, func_hash in functional_envs_in_mol
+                }
 
                 for atom_idx, env_hash in atom_envs_in_mol:
                     if env_hash in target_envs and env_hash not in found_envs:
                         # Get the element of the highlighted atom
                         atom = mol.GetAtomWithIdx(atom_idx)
                         element = atom.GetSymbol()
-                        self.atom_env_examples[env_hash] = (smiles, atom_idx, element)
+
+                        # Get corresponding functional hash for this atom
+                        functional_hash = functional_env_dict.get(atom_idx, "N/A")
+
+                        self.atom_env_examples[env_hash] = (
+                            smiles,
+                            atom_idx,
+                            element,
+                            functional_hash,
+                        )
                         found_envs.add(env_hash)
 
                         # Stop early if we found all environments
@@ -253,7 +304,7 @@ class AtomEnvAtlasGenerator:
 
         # Sort environments by element first, then by vocabulary index for consistent ordering
         def sort_key(item):
-            env_hash, (smiles, atom_idx, element) = item
+            env_hash, (smiles, atom_idx, element, functional_hash) = item
             vocab_idx = self.vocabulary.get(env_hash, float("inf"))
             # Define element priority (common elements first)
             element_priority = {
@@ -312,7 +363,9 @@ class AtomEnvAtlasGenerator:
 
                     if mol_idx < end_idx:
                         # Get environment data
-                        env_hash, (smiles, atom_idx, element) = sorted_envs[mol_idx]
+                        env_hash, (smiles, atom_idx, element, functional_hash) = (
+                            sorted_envs[mol_idx]
+                        )
                         vocab_idx = self.vocabulary.get(env_hash, "?")
 
                         # Create molecule image
@@ -321,7 +374,10 @@ class AtomEnvAtlasGenerator:
                         # Display image
                         ax.imshow(img)
                         ax.set_title(
-                            f"Env #{vocab_idx} ({element})\nHash: {env_hash}\nAtom: {atom_idx}",
+                            f"Env #{vocab_idx} ({element})\n"
+                            f"Struct: {env_hash}\n"
+                            f"Func: {functional_hash}\n"
+                            f"Atom: {atom_idx}",
                             fontsize=8,
                             pad=5,
                         )
@@ -379,12 +435,14 @@ class AtomEnvAtlasGenerator:
                 print(f"  {element}: {count} environments ({percentage:.1f}%)")
 
             print("\nExample environments (first 10):")
-            for i, (env_hash, (smiles, atom_idx, element)) in enumerate(
-                list(self.atom_env_examples.items())[:10]
-            ):
+            for i, (
+                env_hash,
+                (smiles, atom_idx, element, functional_hash),
+            ) in enumerate(list(self.atom_env_examples.items())[:10]):
                 vocab_idx = self.vocabulary.get(env_hash, "?")
                 print(
-                    f"  {env_hash} (#{vocab_idx}, {element}): {smiles[:30]}... atom {atom_idx}"
+                    f"  {env_hash} (#{vocab_idx}, {element}): {smiles[:30]}... "
+                    f"atom {atom_idx}, func: {functional_hash}"
                 )
 
 

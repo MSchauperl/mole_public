@@ -1,6 +1,0 @@
-# Requirements for Atom Environment Atlas Generator
-rdkit>=2023.3.1
-matplotlib>=3.5.0
-pillow>=9.0.0
-tqdm>=4.64.0
-numpy>=1.21.0 

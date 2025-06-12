@@ -203,6 +203,7 @@ def compute_class_weights(target: np.ndarray) -> np.ndarray:
     target: np.ndarray = target.astype(np.float32)
     classes = np.unique(target)
     weight = compute_class_weight(class_weight="balanced", classes=classes, y=target)
+    # There might be an error because the targets are overwritten maybe we should return a new array
     for i in range(len(classes)):
         target[target == classes[i]] = weight[i]
     return target

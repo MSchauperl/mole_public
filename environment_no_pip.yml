@@ -1,0 +1,64 @@
+name: mole-py10-no-pip
+channels:
+  - conda-forge
+  - pytorch
+  - pyg
+  - defaults
+dependencies:
+  # Python
+  - python=3.10
+  
+  # Core ML/Scientific Libraries
+  - numpy
+  - scipy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  
+  # PyTorch Stack
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda
+  
+  # PyTorch Lightning
+  - pytorch-lightning
+  - torchmetrics
+  
+  # Chemistry and Molecular Processing
+  - rdkit=2023.09.1
+  - numexpr
+  - numcodecs
+  
+  # Data Processing
+  - pyarrow
+  - h5py
+  - zarr
+  
+  # Configuration and Utilities
+  - omegaconf
+  - hydra-core
+  - click
+  - tqdm
+  - joblib
+  - psutil
+  
+  # Jupyter and Development
+  - jupyter
+  - notebook
+  - ipykernel
+  - ipywidgets
+  
+  # Testing and Code Quality
+  - pytest
+  - pytest-cov
+  - flake8
+  
+  # Documentation
+  - sphinx
+  - sphinx_rtd_theme
+  
+  # Other utilities
+  - pyyaml
+  - packaging 

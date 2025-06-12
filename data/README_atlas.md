@@ -81,7 +81,8 @@ The generated PDF contains:
 - **Each Cell Contains**:
   - Molecule structure with highlighted atom (red)
   - Environment index number and element symbol
-  - Environment hash value
+  - Structural environment hash value (radius 0, no features)
+  - Functional environment hash value (radius 0, with features)
   - Atom index within the molecule
 
 ## Algorithm Overview
@@ -108,7 +109,8 @@ data/
 
 Each page of the PDF shows 20 molecules arranged in a 4×5 grid. The molecules are organized by element type (carbon environments first, then nitrogen, oxygen, etc.). Each molecule:
 - Has one atom highlighted in red (the atom with the specific environment)
-- Shows the environment index number, element symbol, and hash
+- Shows the environment index number, element symbol, structural hash, and functional hash
+- Displays both structural (radius 0, no features) and functional (radius 0, with features) environment hashes
 - Displays the atom index for reference
 - Is grouped with other environments of the same element type
 

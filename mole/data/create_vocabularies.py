@@ -431,7 +431,12 @@ def create_guacamol_vocabularies(
 
             with open(vocab_path, "wb") as f:
                 pickle.dump(vocab_dict, f)
+            # Save vocabulary
+            vocab_filename_count = f"{vocab_name}_count.pkl"
+            vocab_path_count = os.path.join(output_dir, vocab_filename_count)
 
+            with open(vocab_path_count, "wb") as f:
+                pickle.dump(sorted_fingerprints, f)
             # Store statistics
             vocab_stats[vocab_name] = {
                 "radius": radius,
