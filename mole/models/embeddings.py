@@ -152,8 +152,8 @@ class AtomEnvEmbeddings(torch.nn.Module):
         encoder_output = self.encoder(
             embedding_output,
             attention_mask,
-            output_all_encoded_layers=output_all_encoded_layers,
-            return_att=return_att,
+            output_hidden_states=output_all_encoded_layers,
+            output_attentions=return_att,
             relative_pos=relative_pos,
         )
         encoder_output.update(ebd_output)

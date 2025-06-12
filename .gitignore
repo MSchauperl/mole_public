@@ -1,3 +1,5 @@
 *.pkl
 *.smiles
 *.pyc
+*.pt
+*.json

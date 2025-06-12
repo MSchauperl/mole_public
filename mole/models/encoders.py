@@ -449,6 +449,12 @@ class BertEncoder(nn.Module):
                 for v in [hidden_states, all_hidden_states, all_attentions]
                 if v is not None
             )
-        # Simplified return for now, adjust as needed based on original BertEncoder's return type
-        # Assuming the primary output is the last hidden state
-        return hidden_states
+
+        # Return a dictionary like the original DeBERTa encoder
+        return {
+            "hidden_states": (
+                all_hidden_states if output_hidden_states else hidden_states
+            ),
+            "last_hidden_state": hidden_states,
+            "attentions": all_attentions if output_attentions else None,
+        }
