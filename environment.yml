@@ -1,4 +1,4 @@
-name: mole-py10
+name: mole-env
 channels:
   - conda-forge
   - pytorch
@@ -21,6 +21,7 @@ dependencies:
   - torchvision
   - torchaudio
   - pytorch-cuda
+  - pyg
   
   # PyTorch Lightning
   - pytorch-lightning
@@ -28,7 +29,7 @@ dependencies:
   - torchmetrics
   
   # Chemistry and Molecular Processing
-  - rdkit=2023.09.1
+  - rdkit=2024.*
   - numexpr
   - numcodecs
   
@@ -63,14 +64,18 @@ dependencies:
   # Other utilities
   - pyyaml
   - packaging
+
+
+  - pytdc
+  - onnxruntime
   
   - pip:
     # PyTorch Geometric (compatible with PyTorch 2.0.1)
-    - torch-geometric
-    - torch-scatter
-    - torch-sparse
-    - torch-cluster
-    - torch-spline-conv
+    # - torch-geometric
+    # - torch-scatter
+    # - torch-sparse
+    # - torch-cluster
+    # - torch-spline-conv
     
     # DeBERTa (specific commit/version)
     - git+https://github.com/omendezlucio/DeBERTa.git
@@ -78,11 +83,11 @@ dependencies:
     # ML/AI packages
 #    - tensorboardX
 #    - wandb
-#    - onnx
-#    - onnxruntime
+# #    - onnx
+#     - onnxruntime
     
-    # Chemistry and Drug Discovery
-#    - PyTDC==0.4.1
+#     # Chemistry and Drug Discovery
+#     - PyTDC
 #    - fuzzywuzzy
     
     # Text processing
@@ -99,6 +104,6 @@ dependencies:
 #    - fsspec
     
     # Development tools
-    - pre-commit
-    - black
-    - bandit 
+    # - pre-commit
+    # - black
+    # - bandit 

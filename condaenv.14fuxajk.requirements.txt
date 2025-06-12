@@ -1,9 +1,0 @@
-torch-geometric
-torch-scatter
-torch-sparse
-torch-cluster
-torch-spline-conv
-git+https://github.com/omendezlucio/DeBERTa.git
-pre-commit
-black
-bandit
