@@ -190,10 +190,10 @@ class DisentangledSelfAttention(nn.Module):
         Computes the disentangled attention bias for relative positions.
         This includes content-to-position, position-to-content, and position-to-position terms.
         Args:
-            query_layer: Projected queries
-            key_layer: Projected keys
-            relative_pos: Relative position indices
-            rel_embeddings: Relative position embeddings
+            query_layer: Projected queries - shape: (batch*heads, seq_len, head_size)
+            key_layer: Projected keys - shape: (batch*heads, seq_len, head_size)
+            relative_pos: Relative position indices - shape: (seq_len, seq_len) or (batch, 1, seq_len, seq_len)
+            rel_embeddings: Relative position embeddings - shape: (seq_len, seq_len, hidden_size)
             scale_factor: Scaling factor for normalization
         Returns:
             Tensor of attention biases to add to attention scores
@@ -206,9 +206,14 @@ class DisentangledSelfAttention(nn.Module):
                 bucket_size=self.position_buckets,
                 max_position=self.max_relative_positions,
             )
+
+        # Ensure relative_pos has the right dimensions
+        # Expected: (batch, heads, seq_len, seq_len)
         if relative_pos.dim() == 2:
+            # relative_pos shape: (seq_len, seq_len) -> (1, 1, seq_len, seq_len)
             relative_pos = relative_pos.unsqueeze(0).unsqueeze(0)
         elif relative_pos.dim() == 3:
+            # relative_pos shape: (batch, seq_len, seq_len) -> (batch, 1, seq_len, seq_len)
             relative_pos = relative_pos.unsqueeze(1)
         # bxhxqxk
         elif relative_pos.dim() != 4:
@@ -219,26 +224,58 @@ class DisentangledSelfAttention(nn.Module):
         att_span = self.pos_ebd_size
         relative_pos = relative_pos.long().to(query_layer.device)
 
-        rel_embeddings = rel_embeddings[
-            self.pos_ebd_size - att_span : self.pos_ebd_size + att_span, :  # noqa: E203
-        ].unsqueeze(0)
+        # rel_embeddings expected shape: (2*pos_ebd_size, hidden_size)
+        # But we're getting: (seq_len, seq_len, hidden_size) or (batch, seq_len, seq_len, hidden_size)
+        # We need to slice it properly for the attention mechanism
+
+        if rel_embeddings.dim() == 4:
+            # rel_embeddings shape: (batch, seq_len, seq_len, hidden_size)
+            # Extract a 2D slice for attention computation
+            batch_size, seq_len, _, hidden_size = rel_embeddings.shape
+            # Take diagonal elements or center slice
+            rel_embeddings = rel_embeddings[0, :, 0, :].unsqueeze(
+                0
+            )  # (1, seq_len, hidden_size)
+        elif rel_embeddings.dim() == 3:
+            # rel_embeddings shape: (seq_len, seq_len, hidden_size)
+            # We need to extract the relevant slice for attention computation
+            # Take the center slice that corresponds to our attention span
+            seq_len = rel_embeddings.size(0)
+            center = seq_len // 2
+            start_idx = max(0, center - att_span)
+            end_idx = min(seq_len, center + att_span)
+            rel_embeddings = rel_embeddings[start_idx:end_idx, 0, :].unsqueeze(0)
+            # rel_embeddings shape: (1, 2*att_span, hidden_size)
+        else:
+            # Original format: (2*pos_ebd_size, hidden_size)
+            rel_embeddings = rel_embeddings[
+                self.pos_ebd_size - att_span : self.pos_ebd_size + att_span,
+                :,  # noqa: E203
+            ].unsqueeze(0)
+
+        # rel_embeddings shape: (1, seq_len, hidden_size) or (1, 2*att_span, hidden_size)
+
         if self.share_att_key:
             # If sharing attention key, use the same projection for Q and K
             pos_query_layer = self.transpose_for_scores(
                 self.query_proj(rel_embeddings), self.num_attention_heads
             ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
+            # pos_query_layer shape: (batch*heads, 2*att_span, head_size)
             pos_key_layer = self.transpose_for_scores(
                 self.key_proj(rel_embeddings), self.num_attention_heads
             ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
+            # pos_key_layer shape: (batch*heads, 2*att_span, head_size)
         else:
             if "c2p" in self.pos_att_type or "p2p" in self.pos_att_type:
                 pos_key_layer = self.transpose_for_scores(
                     self.pos_key_proj(rel_embeddings), self.num_attention_heads
                 ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
+                # pos_key_layer shape: (batch*heads, 2*att_span, head_size)
             if "p2c" in self.pos_att_type or "p2p" in self.pos_att_type:
                 pos_query_layer = self.transpose_for_scores(
                     self.pos_query_proj(rel_embeddings), self.num_attention_heads
                 ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
+                # pos_query_layer shape: (batch*heads, 2*att_span, head_size)
 
         score = 0
         # --- Content-to-Position (c2p) ---

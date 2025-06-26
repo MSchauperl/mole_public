@@ -251,13 +251,13 @@ class CrossEnvMLM(Model):
         self, batch, batch_idx: int
     ) -> Dict[str, Union[torch.Tensor, float]]:
         """Training step"""
-        from torch_geometric.utils import to_dense_batch, to_dense_adj
+        from torch_geometric.utils import to_dense_batch
 
         # Convert batch to dense format
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
-        # relative_pos = to_dense_adj(batch.edge_index, batch.batch, batch.edge_attr)
-        relative_pos = None  # Temporarily disable relative positional encoding
+        # Let the encoder handle relative position creation
+        relative_pos = None
 
         # Forward pass
         outputs = self(
@@ -300,13 +300,13 @@ class CrossEnvMLM(Model):
         self, batch, batch_idx: int
     ) -> Dict[str, Union[torch.Tensor, float]]:
         """Validation step"""
-        from torch_geometric.utils import to_dense_batch, to_dense_adj
+        from torch_geometric.utils import to_dense_batch
 
         # Convert batch to dense format
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
-        # relative_pos = to_dense_adj(batch.edge_index, batch.batch, batch.edge_attr)
-        relative_pos = None  # Temporarily disable relative positional encoding
+        # Let the encoder handle relative position creation
+        relative_pos = None
 
         # Forward pass
         outputs = self(

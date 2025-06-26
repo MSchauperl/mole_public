@@ -384,10 +384,21 @@ class BertEncoder(nn.Module):
                     if query_states is not None
                     else hidden_states.size(1)
                 )
+                # build_relative_position returns: (seq_len, seq_len) - relative position indices
                 relative_pos = build_relative_position(
                     q, hidden_states.size(1), self.max_relative_positions
                 ).to(hidden_states.device)
+                # relative_pos shape: (seq_len, seq_len)
+
+            # Clamp relative positions to valid embedding range
+            # The embedding layer has size max_relative_positions * 2
+            max_val = self.max_relative_positions * 2 - 1
+            relative_pos = torch.clamp(relative_pos, 0, max_val)
+            # relative_pos shape: (seq_len, seq_len)
+
+            # Convert to embeddings: (seq_len, seq_len) -> (seq_len, seq_len, hidden_size)
             relative_pos_embeddings = self.rel_embeddings(relative_pos)
+            # relative_pos_embeddings shape: (seq_len, seq_len, hidden_size)
             relative_pos_embeddings = self.pos_dropout(relative_pos_embeddings)
 
         all_hidden_states = () if output_hidden_states else None
