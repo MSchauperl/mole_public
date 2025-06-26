@@ -17,7 +17,19 @@ __all__ = ["DisentangledSelfAttention"]
 
 
 class DisentangledSelfAttention(nn.Module):
+    """
+    Implements the Disentangled Self-Attention mechanism from DeBERTa.
+
+    This attention module supports disentangled attention, which means it can separately model content-to-content,
+    content-to-position, position-to-content, and position-to-position interactions using relative position embeddings.
+    It is highly configurable via the model config.
+    """
+
     def __init__(self, config):
+        """
+        Args:
+            config: Model configuration object with attention parameters.
+        """
         super().__init__()
         self.num_attention_heads = config.num_attention_heads
         _attention_head_size = int(config.hidden_size / config.num_attention_heads)
@@ -25,11 +37,13 @@ class DisentangledSelfAttention(nn.Module):
             config, "attention_head_size", _attention_head_size
         )
         self.all_head_size = self.num_attention_heads * self.attention_head_size
+        # Linear projections for query, key, value
         self.query_proj = nn.Linear(config.hidden_size, self.all_head_size, bias=True)
         self.key_proj = nn.Linear(config.hidden_size, self.all_head_size, bias=True)
         self.value_proj = nn.Linear(config.hidden_size, self.all_head_size, bias=True)
 
         self.share_att_key = getattr(config, "share_att_key", False)
+        # Types of positional attention to use (content-to-position, position-to-content, etc.)
         self.pos_att_type = [
             x.strip() for x in getattr(config, "pos_att_type", "c2p").lower().split("|")
         ]  # c2p|p2c
@@ -43,10 +57,11 @@ class DisentangledSelfAttention(nn.Module):
             self.pos_ebd_size = self.max_relative_positions
             if self.position_buckets > 0:
                 self.pos_ebd_size = self.position_buckets
-                # For backward compitable
+                # For backward compatibility
 
             self.pos_dropout = StableDropout(config.hidden_dropout_prob)
 
+            # Projections for position-based attention
             if not self.share_att_key:
                 if "c2p" in self.pos_att_type or "p2p" in self.pos_att_type:
                     self.pos_key_proj = nn.Linear(
@@ -61,6 +76,14 @@ class DisentangledSelfAttention(nn.Module):
         self._register_load_state_dict_pre_hook(self._pre_load_hook)
 
     def transpose_for_scores(self, x, attention_heads):
+        """
+        Reshapes and permutes the input tensor for multi-head attention.
+        Args:
+            x: Input tensor of shape (batch, seq_len, all_head_size)
+            attention_heads: Number of attention heads
+        Returns:
+            Tensor of shape (batch * heads, seq_len, head_size)
+        """
         new_x_shape = x.size()[:-1] + (attention_heads, -1)
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3).contiguous().view(-1, x.size(1), x.size(-1))
@@ -74,8 +97,21 @@ class DisentangledSelfAttention(nn.Module):
         relative_pos=None,
         rel_embeddings=None,
     ):
+        """
+        Forward pass for disentangled self-attention.
+        Args:
+            hidden_states: Input tensor (batch, seq_len, hidden_size)
+            attention_mask: Mask tensor (batch, seq_len, seq_len)
+            return_att: If True, also return attention weights
+            query_states: Optional, use as queries instead of hidden_states
+            relative_pos: Optional, relative position indices
+            rel_embeddings: Optional, relative position embeddings
+        Returns:
+            Dictionary with keys: 'hidden_states', 'attention_probs', 'attention_logits'
+        """
         if query_states is None:
             query_states = hidden_states
+        # Project to Q, K, V
         query_layer = self.transpose_for_scores(
             self.query_proj(query_states), self.num_attention_heads
         ).float()
@@ -87,7 +123,7 @@ class DisentangledSelfAttention(nn.Module):
         )
 
         rel_att = None
-        # Take the dot product between "query" and "key" to get the raw attention scores.
+        # Compute dot-product attention scores
         scale_factor = 1
         if "c2p" in self.pos_att_type:
             scale_factor += 1
@@ -97,6 +133,7 @@ class DisentangledSelfAttention(nn.Module):
             scale_factor += 1
         scale = 1 / math.sqrt(query_layer.size(-1) * scale_factor)
         attention_scores = torch.bmm(query_layer, key_layer.transpose(-1, -2) * scale)
+        # Add disentangled relative position bias if enabled
         if self.relative_attention:
             rel_embeddings = self.pos_dropout(rel_embeddings)
             rel_att = self.disentangled_attention_bias(
@@ -105,6 +142,7 @@ class DisentangledSelfAttention(nn.Module):
 
         if rel_att is not None:
             attention_scores = attention_scores + rel_att
+        # Normalize scores for numerical stability
         attention_scores = (
             attention_scores
             - attention_scores.max(dim=-1, keepdim=True).values.detach()
@@ -116,9 +154,10 @@ class DisentangledSelfAttention(nn.Module):
             attention_scores.size(-1),
         )
 
-        # bxhxlxd
+        # Apply masked softmax (XSoftmax) and dropout
         _attention_probs = XSoftmax.apply(attention_scores, attention_mask, -1)
         attention_probs = self.dropout(_attention_probs)
+        # Compute context layer (weighted sum of values)
         context_layer = torch.bmm(
             attention_probs.view(
                 -1, attention_probs.size(-2), attention_probs.size(-1)
@@ -139,14 +178,26 @@ class DisentangledSelfAttention(nn.Module):
         context_layer = context_layer.view(*new_context_layer_shape)
 
         return {
-            "hidden_states": context_layer,
-            "attention_probs": _attention_probs,
-            "attention_logits": attention_scores,
+            "hidden_states": context_layer,  # Output of attention
+            "attention_probs": _attention_probs,  # Softmaxed attention weights
+            "attention_logits": attention_scores,  # Raw attention logits
         }
 
     def disentangled_attention_bias(
         self, query_layer, key_layer, relative_pos, rel_embeddings, scale_factor
     ):
+        """
+        Computes the disentangled attention bias for relative positions.
+        This includes content-to-position, position-to-content, and position-to-position terms.
+        Args:
+            query_layer: Projected queries
+            key_layer: Projected keys
+            relative_pos: Relative position indices
+            rel_embeddings: Relative position embeddings
+            scale_factor: Scaling factor for normalization
+        Returns:
+            Tensor of attention biases to add to attention scores
+        """
         if relative_pos is None:
             q = query_layer.size(-2)
             relative_pos = build_relative_position(
@@ -172,32 +223,25 @@ class DisentangledSelfAttention(nn.Module):
             self.pos_ebd_size - att_span : self.pos_ebd_size + att_span, :  # noqa: E203
         ].unsqueeze(0)
         if self.share_att_key:
+            # If sharing attention key, use the same projection for Q and K
             pos_query_layer = self.transpose_for_scores(
                 self.query_proj(rel_embeddings), self.num_attention_heads
-            ).repeat(
-                query_layer.size(0) // self.num_attention_heads, 1, 1
-            )  # .split(self.all_head_size, dim=-1)
+            ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
             pos_key_layer = self.transpose_for_scores(
                 self.key_proj(rel_embeddings), self.num_attention_heads
-            ).repeat(
-                query_layer.size(0) // self.num_attention_heads, 1, 1
-            )  # .split(self.all_head_size, dim=-1)
+            ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
         else:
             if "c2p" in self.pos_att_type or "p2p" in self.pos_att_type:
                 pos_key_layer = self.transpose_for_scores(
                     self.pos_key_proj(rel_embeddings), self.num_attention_heads
-                ).repeat(
-                    query_layer.size(0) // self.num_attention_heads, 1, 1
-                )  # .split(self.all_head_size, dim=-1)
+                ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
             if "p2c" in self.pos_att_type or "p2p" in self.pos_att_type:
                 pos_query_layer = self.transpose_for_scores(
                     self.pos_query_proj(rel_embeddings), self.num_attention_heads
-                ).repeat(
-                    query_layer.size(0) // self.num_attention_heads, 1, 1
-                )  # .split(self.all_head_size, dim=-1)
+                ).repeat(query_layer.size(0) // self.num_attention_heads, 1, 1)
 
         score = 0
-        # content->position
+        # --- Content-to-Position (c2p) ---
         if "c2p" in self.pos_att_type:
             scale = 1 / math.sqrt(pos_key_layer.size(-1) * scale_factor)
             c2p_att = torch.bmm(
@@ -208,9 +252,6 @@ class DisentangledSelfAttention(nn.Module):
                 if relative_pos.min() < 0
                 else torch.clamp(relative_pos, 0, rel_embeddings.size(1) - 1)
             )
-            # c2p_pos = torch.clamp(relative_pos + att_span, 0, att_span*2-1)
-            # c2p_att = torch.gather(c2p_att, dim=-1,
-            #   index=c2p_pos.squeeze(0).expand([query_layer.size(0), query_layer.size(1), relative_pos.size(-1)]))
             c2p_att = torch.gather(
                 c2p_att,
                 dim=-1,
@@ -224,7 +265,7 @@ class DisentangledSelfAttention(nn.Module):
             )
             score += c2p_att
 
-        # position->content
+        # --- Position-to-Content (p2c) ---
         if "p2c" in self.pos_att_type or "p2p" in self.pos_att_type:
             scale = 1 / math.sqrt(pos_query_layer.size(-1) * scale_factor)
             if key_layer.size(-2) != query_layer.size(-2):
@@ -243,7 +284,6 @@ class DisentangledSelfAttention(nn.Module):
                 if r_pos.min() < 0
                 else torch.clamp(r_pos, 0, rel_embeddings.size(1) - 1)
             )
-            # p2c_pos = torch.clamp(-r_pos + att_span, 0, att_span*2-1)
             if query_layer.size(-2) != key_layer.size(-2):
                 pos_index = relative_pos[:, :, :, 0].unsqueeze(-1)
 
@@ -251,9 +291,6 @@ class DisentangledSelfAttention(nn.Module):
             p2c_att = torch.bmm(
                 key_layer, pos_query_layer.transpose(-1, -2).to(key_layer) * scale
             )
-
-            # p2c_att = torch.gather(p2c_att, dim=-1, index=p2c_pos.squeeze(0).expand(
-            #   [query_layer.size(0), key_layer.size(-2), key_layer.size(-2)])).transpose(-1,-2)
             p2c_att = torch.gather(
                 p2c_att,
                 dim=-1,
@@ -275,7 +312,7 @@ class DisentangledSelfAttention(nn.Module):
                 )
             score += p2c_att
 
-        # position->position
+        # --- Position-to-Position (p2p) ---
         if "p2p" in self.pos_att_type:
             pos_query = pos_query_layer[:, :, att_span:, :]
             p2p_att = torch.matmul(pos_query, pos_key_layer.transpose(-1, -2))
@@ -314,6 +351,10 @@ class DisentangledSelfAttention(nn.Module):
         unexpected_keys,
         error_msgs,
     ):
+        """
+        Handles backward compatibility for loading older model checkpoints.
+        Converts old projection weights to the new format if needed.
+        """
         self_state = self.state_dict()
         if ((prefix + "query_proj.weight") not in state_dict) and (
             (prefix + "in_proj.weight") in state_dict
@@ -349,29 +390,25 @@ class DisentangledSelfAttention(nn.Module):
 
 
 class XSoftmax(torch.autograd.Function):
-    """Masked Softmax which is optimized for saving memory
-    Args:
+    """
+    Masked Softmax optimized for memory and speed.
 
-        input (:obj:`torch.tensor`): The input tensor that will apply softmax.
-        mask (:obj:`torch.IntTensor`): The mask matrix where 0 indicate that element will
-                                       be ignored in the softmax caculation.
-        dim (int): The dimenssion that will apply softmax.
-
-    Example::
-        import torch
-        from DeBERTa.deberta import XSoftmax
-        # Make a tensor
-        x = torch.randn([4,20,100])
-        # Create a mask
-        mask = (x>0).int()
-        y = XSoftmax.apply(x, mask, dim=-1)
-
+    This function applies softmax to the input tensor, but only to the elements where the mask is 1.
+    Masked elements (mask == 0) are ignored in the softmax calculation and set to zero in the output.
+    This is useful for attention mechanisms where some positions should not be attended to (e.g., padding).
     """
 
     @staticmethod
     def forward(self, input, mask, dim):
-        """ """
-
+        """
+        Forward pass for masked softmax.
+        Args:
+            input: Input tensor
+            mask: Mask tensor (0 = ignore, 1 = include)
+            dim: Dimension to apply softmax
+        Returns:
+            Softmaxed tensor with masked positions set to zero
+        """
         self.dim = dim
         if version.Version(torch.__version__) >= version.Version("1.2.0a"):
             rmask = ~(mask.bool())
@@ -386,14 +423,22 @@ class XSoftmax(torch.autograd.Function):
 
     @staticmethod
     def backward(self, grad_output):
-        """ """
-
+        """
+        Backward pass for masked softmax.
+        Args:
+            grad_output: Gradient of the output
+        Returns:
+            Gradient of the input, None, None
+        """
         (output,) = self.saved_tensors
         inputGrad = _softmax_backward_data(grad_output, output, self.dim, output.dtype)
         return inputGrad, None, None
 
     @staticmethod
     def symbolic(g, self, mask, dim):
+        """
+        Symbolic (ONNX export) implementation for masked softmax.
+        """
         import torch.onnx.symbolic_helper as sym_help
         from torch.onnx.symbolic_opset9 import masked_fill
         from torch.onnx.symbolic_opset9 import softmax
