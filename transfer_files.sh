@@ -1,11 +1,12 @@
 #!/bin/bash
 # File Transfer Script for MolE Setup
-# Use this script to copy necessary files to a new machine
+# Use this script to copy only the necessary data files (not in git repo) to a new machine
 
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 print_info() {
@@ -20,8 +21,12 @@ print_note() {
     echo -e "${YELLOW}[NOTE]${NC} $1"
 }
 
-echo "📦 MolE File Transfer Guide"
-echo "==========================="
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+echo "📦 MolE Data Files Transfer (Git Repo Already Exists)"
+echo "===================================================="
 echo ""
 
 # Check if we're in the right directory
@@ -39,56 +44,125 @@ if [ -z "$NEW_MACHINE_USER" ] || [ -z "$NEW_MACHINE_IP" ] || [ -z "$NEW_MACHINE_
     echo ""
     echo "Example: $0 user 192.168.1.100 /home/user/mole_public"
     echo ""
-    echo "Or manually copy these files:"
+    print_note "This script assumes the git repository is already cloned on the destination machine."
     echo ""
-    print_info "Essential files to copy:"
-    echo "1. Entire project directory (excluding outputs/)"
-    echo "2. GuacaMol dataset: data/guacamol_v1_all.smiles (74MB)"
-    echo "3. Vocabularies in mole/data/vocabularies/*.pkl"
+    print_info "Files that need to be transferred (not in git repo):"
     echo ""
-    print_info "File sizes:"
+    
+    # Check what files exist and show sizes
+    print_info "Data files:"
     if [ -f "data/guacamol_v1_all.smiles" ]; then
-        echo "   GuacaMol dataset: $(du -h data/guacamol_v1_all.smiles | cut -f1)"
+        echo "   ✅ data/guacamol_v1_all.smiles ($(du -h data/guacamol_v1_all.smiles | cut -f1))"
+    else
+        echo "   ❌ data/guacamol_v1_all.smiles (NOT FOUND)"
     fi
     
+    print_info "Vocabulary files:"
     if [ -d "mole/data/vocabularies" ]; then
-        echo "   Vocabularies: $(du -sh mole/data/vocabularies | cut -f1)"
+        vocab_count=$(find mole/data/vocabularies -name "*.pkl" | wc -l)
+        vocab_size=$(du -sh mole/data/vocabularies 2>/dev/null | cut -f1)
+        echo "   ✅ mole/data/vocabularies/ ($vocab_count .pkl files, $vocab_size total)"
+        
+        # List specific vocabulary files
+        if [ -f "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl" ]; then
+            echo "     ✅ vocabulary_radius0_structural_guacamol_v1.pkl"
+        else
+            echo "     ❌ vocabulary_radius0_structural_guacamol_v1.pkl (REQUIRED)"
+        fi
+        
+        if [ -f "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl" ]; then
+            echo "     ✅ vocabulary_radius1_functional_guacamol_v1.pkl"
+        else
+            echo "     ❌ vocabulary_radius1_functional_guacamol_v1.pkl (REQUIRED)"
+        fi
+    else
+        echo "   ❌ mole/data/vocabularies/ (NOT FOUND)"
     fi
     
-    echo "   Total project: $(du -sh . --exclude=outputs | cut -f1)"
+    print_info "Training outputs (optional):"
+    if [ -d "outputs" ]; then
+        outputs_size=$(du -sh outputs 2>/dev/null | cut -f1)
+        echo "   ✅ outputs/ ($outputs_size) - Contains training checkpoints/logs"
+    else
+        echo "   ❌ outputs/ (No training outputs yet)"
+    fi
+    
     echo ""
-    print_note "You can exclude these directories to save space:"
-    echo "   - outputs/ (training outputs)"
-    echo "   - .git/ (git history)"
-    echo "   - __pycache__/ (Python cache)"
-    echo "   - *.egg-info/ (package info)"
+    print_note "Manual transfer commands:"
+    echo "scp data/guacamol_v1_all.smiles $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/data/"
+    echo "scp -r mole/data/vocabularies/ $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/mole/data/"
+    echo ""
     exit 1
 fi
 
-print_info "Transferring files to $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH"
+print_info "Transferring data files to $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH"
+print_note "Assuming git repository is already cloned at destination"
 
-# Create destination directory
-print_info "Creating destination directory..."
-ssh $NEW_MACHINE_USER@$NEW_MACHINE_IP "mkdir -p $NEW_MACHINE_PATH"
+# Check if required files exist
+missing_files=0
 
-# Transfer project files (excluding outputs and cache)
-print_info "Transferring project files..."
-rsync -avz --progress \
-    --exclude='outputs/' \
-    --exclude='.git/' \
-    --exclude='__pycache__/' \
-    --exclude='*.egg-info/' \
-    --exclude='*.pyc' \
-    . $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/
+if [ ! -f "data/guacamol_v1_all.smiles" ]; then
+    print_error "Required file missing: data/guacamol_v1_all.smiles"
+    missing_files=$((missing_files + 1))
+fi
 
-print_success "File transfer completed!"
+if [ ! -f "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl" ]; then
+    print_error "Required file missing: mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl"
+    missing_files=$((missing_files + 1))
+fi
 
-print_info "Next steps on the new machine:"
+if [ ! -f "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl" ]; then
+    print_error "Required file missing: mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl"
+    missing_files=$((missing_files + 1))
+fi
+
+if [ $missing_files -gt 0 ]; then
+    print_error "Cannot proceed: $missing_files required files are missing"
+    print_note "Generate vocabularies with: python mole/data/create_vocabularies.py"
+    exit 1
+fi
+
+# Transfer GuacaMol dataset
+print_info "Transferring GuacaMol dataset..."
+ssh $NEW_MACHINE_USER@$NEW_MACHINE_IP "mkdir -p $NEW_MACHINE_PATH/data"
+scp data/guacamol_v1_all.smiles $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/data/
+
+print_success "GuacaMol dataset transferred ($(du -h data/guacamol_v1_all.smiles | cut -f1))"
+
+# Transfer vocabularies
+print_info "Transferring vocabulary files..."
+ssh $NEW_MACHINE_USER@$NEW_MACHINE_IP "mkdir -p $NEW_MACHINE_PATH/mole/data/vocabularies"
+scp mole/data/vocabularies/*.pkl $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/mole/data/vocabularies/
+
+print_success "Vocabularies transferred ($(du -sh mole/data/vocabularies | cut -f1))"
+
+# Optional: Transfer training outputs if they exist
+if [ -d "outputs" ]; then
+    read -p "Transfer training outputs/checkpoints? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Transferring training outputs..."
+        ssh $NEW_MACHINE_USER@$NEW_MACHINE_IP "mkdir -p $NEW_MACHINE_PATH/outputs"
+        rsync -avz --progress outputs/ $NEW_MACHINE_USER@$NEW_MACHINE_IP:$NEW_MACHINE_PATH/outputs/
+        print_success "Training outputs transferred"
+    fi
+fi
+
+print_success "Data file transfer completed!"
+
+echo ""
+print_info "Files transferred:"
+echo "✅ GuacaMol dataset: data/guacamol_v1_all.smiles"
+echo "✅ Vocabularies: mole/data/vocabularies/*.pkl"
+
+echo ""
+print_info "Next steps on the destination machine:"
 echo "1. cd $NEW_MACHINE_PATH"
-echo "2. chmod +x setup_machine.sh"
-echo "3. ./setup_machine.sh"
-echo "4. conda activate mole-py10"
-echo "5. python scripts/check_guacamol_dataset.py"
-echo "6. python scripts/run_crossenv_training.py"
+echo "2. git pull  # Update to latest code if needed"
+echo "3. conda activate mole-py10  # Or create environment if needed"
+echo "4. python scripts/check_guacamol_dataset.py  # Verify files"
+echo "5. python scripts/run_crossenv_training.py  # Start training"
 
-print_note "Don't forget to install NVIDIA drivers and CUDA on the new machine if needed!" 
+echo ""
+print_note "If environment doesn't exist on destination machine:"
+echo "1. ./setup_machine.sh  # Will create environment from environment_mole_py10.yml" 
