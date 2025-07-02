@@ -18,7 +18,6 @@ from typing import Dict, Any
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
-    EarlyStopping,
     LearningRateMonitor,
 )
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -30,7 +29,6 @@ sys.path.insert(0, str(project_root))
 
 from mole.data.crossenv_datamodule import CrossEnvDataModule
 from mole.models.crossenv_mlm import CrossEnvMLMModel, CrossEnvMLM
-from mole.models.base import OptimizerConfig
 
 
 def parse_args():
@@ -376,7 +374,6 @@ def main():
     logger.info("Creating trainer...")
     trainer_kwargs = {
         "max_epochs": args.max_epochs,
-        "max_steps": args.max_steps,
         "precision": args.precision,
         "accumulate_grad_batches": args.accumulate_grad_batches,
         "gradient_clip_val": args.gradient_clip_val,
@@ -388,6 +385,10 @@ def main():
         "log_every_n_steps": 50,
         "check_val_every_n_epoch": 1,
     }
+
+    # Only add max_steps if it's not None
+    if args.max_steps is not None:
+        trainer_kwargs["max_steps"] = args.max_steps
 
     if args.gpus > 0:
         trainer_kwargs["devices"] = args.gpus

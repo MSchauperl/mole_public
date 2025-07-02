@@ -1,0 +1,73 @@
+name: mole-py10
+channels:
+  - conda-forge
+  - pytorch
+  - pyg
+  - defaults
+dependencies:
+  # Python
+  - python=3.10
+  
+  # PyTorch Stack (exact versions that work)
+  - pytorch=2.4.1
+  - pytorch-cuda=12.4
+  - torchvision
+  - torchaudio
+  - pyg=2.6.1
+  
+  # PyTorch Lightning
+  - pytorch-lightning=2.5.1
+  - lightning-utilities=0.14.3
+  - torchmetrics=1.7.2
+  
+  # Chemistry and Molecular Processing
+  - rdkit=2024.09.6
+  - numexpr
+  - numcodecs
+  
+  # Core ML/Scientific Libraries
+  - numpy=1.26.4
+  - scipy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  
+  # Data Processing
+  - pyarrow
+  - h5py
+  - zarr
+  
+  # Configuration and Utilities
+  - omegaconf
+  - hydra-core
+  - click
+  - tqdm
+  - joblib
+  - psutil
+  
+  # Jupyter and Development
+  - jupyter
+  - notebook
+  - ipykernel
+  - ipywidgets
+  
+  # Testing and Code Quality
+  - pytest
+  - pytest-cov
+  - flake8
+  
+  # Documentation
+  - sphinx
+  - sphinx_rtd_theme
+  
+  # Other utilities
+  - pyyaml
+  - packaging
+  
+  - pip:
+    # DeBERTa (specific commit/version that works)
+    - git+https://github.com/omendezlucio/DeBERTa.git
+    
+    # Additional packages that might be needed
+    - tensorboardX 
