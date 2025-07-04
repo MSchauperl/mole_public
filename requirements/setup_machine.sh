@@ -31,6 +31,30 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Get the directory of this script (should be requirements/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the parent directory (should be mole_public/)
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+print_status "Script directory: $SCRIPT_DIR"
+print_status "Project directory: $PROJECT_DIR"
+
+# Change to the project directory
+cd "$PROJECT_DIR" || {
+    print_error "Cannot find mole_public directory. Please run this script from mole_public/requirements/"
+    exit 1
+}
+
+# Verify we're in the correct directory
+if [ ! -f "setup.py" ] || [ ! -d "mole" ]; then
+    print_error "Not in the correct mole_public directory. Expected to find setup.py and mole/ directory."
+    print_error "Current directory: $(pwd)"
+    print_error "Please run this script from mole_public/requirements/"
+    exit 1
+fi
+
+print_status "Working from project directory: $(pwd)"
+
 # Check prerequisites
 print_status "Checking prerequisites..."
 
@@ -65,12 +89,12 @@ if conda env list | grep -q "mole-py10"; then
     conda env remove -n mole-py10 -y
 fi
 
-# Create environment from yml file
-if [ -f "environment_mole_py10.yml" ]; then
-    print_status "Creating environment from environment_mole_py10.yml..."
-    conda env create -f environment_mole_py10.yml
+# Create environment from yml file (now in requirements/)
+if [ -f "$SCRIPT_DIR/environment_mole_py10.yml" ]; then
+    print_status "Creating environment from requirements/environment_mole_py10.yml..."
+    conda env create -f "$SCRIPT_DIR/environment_mole_py10.yml"
 else
-    print_warning "environment_mole_py10.yml not found. Creating environment manually..."
+    print_warning "requirements/environment_mole_py10.yml not found. Creating environment manually..."
     
     # Create base environment
     conda create -n mole-py10 python=3.10 -y
@@ -118,7 +142,7 @@ print_status "Installing MolE package..."
 source $(conda info --base)/etc/profile.d/conda.sh
 conda activate mole-py10
 
-# Install MolE in development mode
+# Install MolE in development mode (from the project directory)
 pip install -e .
 
 print_success "MolE package installed!"

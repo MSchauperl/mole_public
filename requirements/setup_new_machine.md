@@ -20,8 +20,8 @@ cd mole_public
 
 ### Option A: From environment.yml (Recommended)
 ```bash
-# Create environment from the provided environment.yml
-conda env create -f environment_mole_py10.yml
+# Create environment from the provided environment.yml (now in requirements/)
+conda env create -f requirements/environment_mole_py10.yml
 
 # Activate the environment
 conda activate mole-py10
@@ -184,8 +184,22 @@ If copying from an existing setup:
 3. **Vocabularies**: 
    - `mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl`
    - `mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl`
-4. **Environment**: Use the provided `environment_mole_py10.yml`
+4. **Environment**: Use the provided `requirements/environment_mole_py10.yml`
 
 ## Quick Start Script
 
-See `setup_machine.sh` for an automated setup script. 
+See `requirements/setup_machine.sh` for an automated setup script.
+
+### Automated Setup
+```bash
+# Run the automated setup (from the main mole_public directory)
+./requirements/setup_machine.sh
+```
+
+This script will:
+1. Check prerequisites (conda, NVIDIA drivers, git)
+2. Create the mole-py10 environment from `requirements/environment_mole_py10.yml`
+3. Install MolE package in development mode
+4. Test all installations
+5. Check for required data files
+6. Provide next steps for training 

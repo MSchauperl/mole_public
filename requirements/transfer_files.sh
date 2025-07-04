@@ -29,9 +29,22 @@ echo "📦 MolE Data Files Transfer (Git Repo Already Exists)"
 echo "===================================================="
 echo ""
 
+# Get the directory of this script (should be requirements/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the parent directory (should be mole_public/)
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Change to the project directory
+cd "$PROJECT_DIR" || {
+    print_error "Cannot find mole_public directory. Please run this script from mole_public/requirements/"
+    exit 1
+}
+
 # Check if we're in the right directory
-if [ ! -f "setup_machine.sh" ]; then
-    echo "❌ Please run this script from the mole_public directory"
+if [ ! -f "setup.py" ] || [ ! -d "mole" ]; then
+    print_error "Not in the correct mole_public directory. Expected to find setup.py and mole/ directory."
+    print_error "Current directory: $(pwd)"
+    print_error "Please run this script from mole_public/requirements/"
     exit 1
 fi
 
@@ -165,4 +178,4 @@ echo "5. python scripts/run_crossenv_training.py  # Start training"
 
 echo ""
 print_note "If environment doesn't exist on destination machine:"
-echo "1. ./setup_machine.sh  # Will create environment from environment_mole_py10.yml" 
+echo "1. ./requirements/setup_machine.sh  # Will create environment from requirements/environment_mole_py10.yml" 

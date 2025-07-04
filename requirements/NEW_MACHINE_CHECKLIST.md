@@ -18,17 +18,16 @@
 
 ### Option 1: Use Setup Script
 ```bash
-# 1. Copy files to new machine
-./transfer_files.sh username ip_address /path/to/destination
+# 1. Copy files to new machine (run from original machine)
+./requirements/transfer_files.sh username ip_address /path/to/destination
 
 # 2. On new machine, run setup
 cd /path/to/destination
-chmod +x setup_machine.sh
-./setup_machine.sh
+./requirements/setup_machine.sh
 ```
 
 ### Option 2: Manual Setup
-Follow the detailed guide in `setup_new_machine.md`
+Follow the detailed guide in `requirements/setup_new_machine.md`
 
 ## 📁 Files to Transfer
 
@@ -36,8 +35,8 @@ Follow the detailed guide in `setup_new_machine.md`
 - [ ] `data/guacamol_v1_all.smiles` (74MB) - GuacaMol dataset
 - [ ] `mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl`
 - [ ] `mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl`
-- [ ] `environment_mole_py10.yml` - Exact environment specification
-- [ ] `setup_machine.sh` - Automated setup script
+- [ ] `requirements/environment_mole_py10.yml` - Exact environment specification
+- [ ] `requirements/setup_machine.sh` - Automated setup script
 - [ ] Entire `mole/` directory - Source code
 - [ ] Entire `scripts/` directory - Training scripts
 
@@ -123,6 +122,12 @@ Expected GPU usage: ~800MB on RTX 3070
 2. Check Python path: `python -c "import sys; print(sys.path)"`
 3. Reinstall DeBERTa: `pip install git+https://github.com/omendezlucio/DeBERTa.git --force-reinstall`
 
+### Setup Script Issues
+If setup scripts fail:
+1. Check you're running from the correct directory: `pwd` should show `/path/to/mole_public`
+2. Scripts should be called as: `./requirements/setup_machine.sh`
+3. Check file permissions: `chmod +x requirements/setup_machine.sh`
+
 ## 📊 Expected Performance
 
 ### Memory Usage (RTX 3070)
@@ -147,7 +152,7 @@ Training is successful when:
 ## 📞 Support
 
 If you encounter issues:
-1. Check `setup_new_machine.md` for detailed troubleshooting
+1. Check `requirements/setup_new_machine.md` for detailed troubleshooting
 2. Verify all files transferred correctly
 3. Check GPU drivers and CUDA installation
 4. Compare `conda list` output with working machine
