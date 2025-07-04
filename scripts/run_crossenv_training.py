@@ -13,42 +13,43 @@ from pathlib import Path
 
 
 def main():
-    # Default training parameters optimized for Tesla T4 (15.36 GB memory)
+    # Default training parameters optimized for NVIDIA A100 (40/80 GB memory)
     default_params = {
         "--train_data": "data/guacamol_v1_all.smiles",  # Full GuacaMol dataset
         "--input_vocab": "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
         "--target_vocab": "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
         "--output_dir": "outputs/guacamol_crossenv_mlm",
-        "--model_name": "guacamol_r0_to_r1_functional_tesla_t4_optimized",
-        # Model configuration (Tesla T4 optimized - 15.36 GB memory)
-        "--hidden_size": "768",  # Increased from 384 for Tesla T4
-        "--num_hidden_layers": "12",  # Increased from 6 for Tesla T4
-        "--num_attention_heads": "12",  # Increased from 6 for Tesla T4
-        "--intermediate_size": "3072",  # Increased from 1536 for Tesla T4
+        "--model_name": "guacamol_r0_to_r1_functional_a100_optimized",
+        # Model configuration (same as Tesla T4 to allow for larger batches)
+        "--hidden_size": "768",
+        "--num_hidden_layers": "12",
+        "--num_attention_heads": "12",
+        "--intermediate_size": "3072",
         "--dropout": "0.1",
         # Environment configuration
         "--input_radius": "0",
         "--target_radius": "1",
         "--target_use_features": "",  # Flag for functional environments
-        # Training configuration (Tesla T4 optimized for ~1.6M molecules)
-        "--batch_size": "32",  # Increased from 16 for Tesla T4
+        # Training configuration (NVIDIA A100 optimized for ~1.6M molecules)
+        "--batch_size": "256",  # Increased from 32 for A100
         "--learning_rate": "1e-4",  # Keep same learning rate
         "--weight_decay": "0.01",
         "--warmup_steps": "5000",  # Adjusted for dataset size
-        "--max_epochs": "30",  # Can reduce epochs due to larger model capacity
-        "--validation_split": "0.05",  # Smaller validation split (still ~80k molecules)
+        "--max_epochs": "1",
+        "--validation_split": "0.05",
         "--val_check_interval": "0.5",  # Validate twice per epoch
-        # Hardware configuration (Tesla T4 optimized)
+        # Hardware configuration (NVIDIA A100 optimized)
         "--gpus": "1",
-        "--num_workers": "4",  # Increased workers for Tesla T4
-        "--precision": "16",  # Mixed precision for memory efficiency
-        "--accumulate_grad_batches": "4",  # Reduced accumulation since batch_size is higher
-        "--gradient_clip_val": "1.0",  # Add gradient clipping for stability
+        "--num_workers": "16",  # Increased workers for A100 (tune based on CPU cores)
+        "--precision": "16",  # A100 is highly optimized for mixed precision
+        "--accumulate_grad_batches": "2",  # Adjust accumulation for larger batch size
+        "--gradient_clip_val": "1.0",
         # Memory and efficiency optimizations
-        "--max_length": "256",  # Increased sequence length for Tesla T4
+        "--max_length": "256",  # Keep sequence length same for comparability
         # Misc
         "--seed": "42",
         "--log_predictions": "",  # Flag to log examples
+        #"--use_torch_compile": "",  # Flag to enable torch.compile
     }
 
     # Build command
@@ -69,11 +70,11 @@ def main():
     print("🚀 Starting MolE Cross-Environment MLM Training on GuacaMol Dataset")
     print("=" * 70)
     print("📊 Dataset: GuacaMol (~1.6M molecules)")
-    print("🎯 GPU: Tesla T4 (15.36 GB VRAM) - Optimized Configuration")
+    print("🎯 GPU: NVIDIA A100 (40/80 GB VRAM) - Optimized Configuration")
     hidden_size = default_params["--hidden_size"]
     num_layers = default_params["--num_hidden_layers"]
     print(
-        f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers (Tesla T4 optimized)"
+        f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers (NVIDIA A100 optimized)"
     )
 
     target_radius = default_params["--target_radius"]
