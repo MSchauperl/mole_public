@@ -13,11 +13,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from DeBERTa.deberta.config import ModelConfig
+import logging
+from torchmetrics import MeanMetric
+import math
 
 from mole.models.embeddings import AtomEnvEmbeddings
 from mole.models.base import Model, TensorDict, OptimizerConfig
 from mole.metrics import MetricsDict
-from torchmetrics import MeanMetric
+
+
+logger = logging.getLogger(__name__)
+
+
+# Removed _clean_metric_value function - no longer needed after fixing vocabulary lookup bug
 
 
 class CrossEnvMLMModel(nn.Module):
@@ -146,11 +154,18 @@ class CrossEnvMLMModel(nn.Module):
                 accuracy = correct.sum().float() / mask.sum().float()
                 outputs["accuracy"] = accuracy
 
-                # Calculate perplexity
+                # Calculate perplexity (with safe exp to avoid overflow)
                 valid_loss = F.cross_entropy(
                     flat_logits[mask], flat_labels[mask], reduction="mean"
                 )
-                perplexity = torch.exp(valid_loss)
+                # Clamp loss to prevent exp() overflow (max exp(20) ≈ 485M)
+                safe_loss = torch.clamp(valid_loss, max=20.0)
+                perplexity = torch.exp(safe_loss)
+                
+                # Additional safety check for NaN/Inf
+                if torch.isnan(perplexity) or torch.isinf(perplexity):
+                    perplexity = torch.tensor(1000.0, device=perplexity.device)
+                
                 outputs["perplexity"] = perplexity
 
         if return_dict:
@@ -371,6 +386,21 @@ class CrossEnvMLM(Model):
 
     def update_metrics(self, outputs: TensorDict, batch: TensorDict) -> None:
         """Update metrics for train and val steps"""
-        # The metrics are already logged in training_step and validation_step
-        # So we can just call the parent update_metrics
-        super().update_metrics(outputs, batch)
+        # Update metrics based on training mode
+        if "loss" in outputs:
+            if self.training:
+                self.metrics["train_loss"].update(outputs["loss"])
+            else:
+                self.metrics["val_loss"].update(outputs["loss"])
+        
+        if "accuracy" in outputs:
+            if self.training:
+                self.metrics["train_accuracy"].update(outputs["accuracy"])
+            else:
+                self.metrics["val_accuracy"].update(outputs["accuracy"])
+        
+        if "perplexity" in outputs:
+            if self.training:
+                self.metrics["train_perplexity"].update(outputs["perplexity"])
+            else:
+                self.metrics["val_perplexity"].update(outputs["perplexity"])

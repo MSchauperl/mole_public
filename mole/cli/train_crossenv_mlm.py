@@ -13,15 +13,18 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
     ModelCheckpoint,
     LearningRateMonitor,
+    EarlyStopping,
 )
 from pytorch_lightning.loggers import TensorBoardLogger
 import torch
+import numpy as np
+import math
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent

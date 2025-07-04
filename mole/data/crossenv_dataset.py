@@ -129,11 +129,19 @@ class CrossEnvMolDataset(Dataset):
     ) -> List[int]:
         """Encode atom environments using vocabulary"""
         tokens = []
+        found_count = 0
         for env in environments:
             if env is None:
                 tokens.append(unk_id)
             else:
-                tokens.append(vocab.get(str(env), unk_id))
+                # Fix: Use integer key directly instead of converting to string
+                token = vocab.get(env, unk_id)
+                if token != unk_id:
+                    found_count += 1
+                tokens.append(token)
+        
+# Vocabulary coverage debugging removed - issue was fixed (int vs string key mismatch)
+        
         return tokens
 
     def create_mlm_sample(
