@@ -221,6 +221,11 @@ def parse_args():
         action="store_true",
         help="Log prediction examples during validation",
     )
+    parser.add_argument(
+        "--use_torch_compile",
+        action="store_true",
+        help="Enable torch.compile for performance improvements (requires PyTorch 2.0+)",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     return parser.parse_args()
@@ -410,6 +415,10 @@ def main():
     logger.info(f"  Total parameters: {total_params:,}")
     logger.info(f"  Trainable parameters: {trainable_params:,}")
     logger.info(f"  Model size: ~{total_params * 4 / 1024**2:.1f}MB (float32)")
+
+    # Compile model if requested (PyTorch 2.0+)
+    if args.use_torch_compile:
+        lightning_model.compile()
 
     # Start training
     logger.info("Starting training...")
