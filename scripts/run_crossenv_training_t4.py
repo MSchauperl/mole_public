@@ -35,7 +35,7 @@ default_params = {
     "--warmup_steps": "5000",
     "--max_epochs": "30",  # Increased for a more complete run on a single machine
     "--validation_split": "0.05",
-    "--val_check_interval": "0.5",
+    "--val_check_interval": "0.2", # Run validation 5 times per epoch
     # Hardware configuration (Tesla T4 optimized)
     "--gpus": "1",
     "--num_workers": "4",  # Reduced for typical T4 setups
@@ -47,6 +47,7 @@ default_params = {
     # Misc
     "--seed": "42",
     "--log_predictions": "",
+    "--patience": "5", # Stop if validation loss does not improve for 5 checks
 }
 
 

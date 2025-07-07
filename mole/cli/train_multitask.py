@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 import torch
 
@@ -121,6 +121,17 @@ def main():
         save_top_k=3,
     )
     lr_monitor = LearningRateMonitor(logging_interval="step")
+    callbacks = [checkpoint_callback, lr_monitor]
+
+    if args.patience > 0:
+        early_stopping_callback = EarlyStopping(
+            monitor="val/total_loss",
+            patience=args.patience,
+            verbose=True,
+            mode="min",
+        )
+        callbacks.append(early_stopping_callback)
+
     logger = TensorBoardLogger(
         save_dir=args.output_dir, name=args.model_name, version="lightning_logs"
     )
@@ -130,7 +141,7 @@ def main():
         accelerator="gpu",
         devices=args.gpus,
         logger=logger,
-        callbacks=[checkpoint_callback, lr_monitor],
+        callbacks=callbacks,
         max_epochs=args.max_epochs,
         max_steps=args.max_steps if args.max_steps is not None else -1,
         precision=args.precision,

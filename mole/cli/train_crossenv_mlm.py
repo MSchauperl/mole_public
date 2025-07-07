@@ -228,6 +228,14 @@ def get_arg_parser():
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
+    # Early stopping
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=5,
+        help="Patience for early stopping. Set to 0 to disable.",
+    )
+
     return parser
 
 
@@ -357,25 +365,24 @@ def main():
     )
 
     # Create callbacks
-    callbacks = [
-        ModelCheckpoint(
-            dirpath=output_dir / "checkpoints",
-            filename="{epoch:02d}-{step:05d}",
-            save_top_k=-1,  # Save all checkpoints
-            save_last=True,
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=output_dir / "checkpoints",
+        filename="{epoch:02d}-{step:05d}",
+        save_top_k=-1,  # Save all checkpoints
+        save_last=True,
+        verbose=True,
+    )
+    lr_monitor = LearningRateMonitor(logging_interval="step")
+    callbacks = [checkpoint_callback, lr_monitor]
+
+    if args.patience > 0:
+        early_stopping_callback = EarlyStopping(
+            monitor="val_loss",
+            patience=args.patience,
             verbose=True,
-        ),
-        # EarlyStopping(
-        #     monitor="val_loss",
-        #     mode="min",
-        #     patience=10,
-        #     verbose=True,
-        # ),
-        LearningRateMonitor(
-            logging_interval="step",
-            log_momentum=True,
-        ),
-    ]
+            mode="min",
+        )
+        callbacks.append(early_stopping_callback)
 
     # Create logger
     tb_logger = TensorBoardLogger(
