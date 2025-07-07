@@ -281,28 +281,32 @@ class CrossEnvMolDataset(Dataset):
         except Exception as e:
             # Return a dummy sample for failed molecules
             print(f"Warning: Failed to process molecule {idx}: {e}")
+            return self.__handle_fail_case__(idx, smiles_str)
 
-            # Create minimal dummy sample
-            dummy_input = (
-                [self.input_cls_id, self.input_unk_id]
-                if self.cls_token
-                else [self.input_unk_id]
-            )
-            dummy_target = (
-                [self.target_unk_id, self.target_unk_id]
-                if self.cls_token
-                else [self.target_unk_id]
-            )
-            dummy_labels = [-100, -100] if self.cls_token else [-100]
+    def __handle_fail_case__(self, idx: int, smiles_str: str) -> Data:
+        """Creates a dummy sample for a molecule that failed to process"""
+        # Create minimal dummy sample
+        dummy_input = (
+            [self.input_cls_id, self.input_unk_id]
+            if self.cls_token
+            else [self.input_unk_id]
+        )
+        dummy_target = (
+            [self.target_unk_id, self.target_unk_id]
+            if self.cls_token
+            else [self.target_unk_id]
+        )
+        dummy_labels = [-100, -100] if self.cls_token else [-100]
 
-            data_dict = {
-                "x": torch.tensor(dummy_input, dtype=torch.long),
-                "labels": torch.tensor(dummy_labels, dtype=torch.long),
-                "original_input": torch.tensor(dummy_input, dtype=torch.long),
-                "target_tokens": torch.tensor(dummy_target, dtype=torch.long),
-                "edge_index": torch.tensor([[0, 1], [1, 0]], dtype=torch.long),
-                "edge_attr": torch.tensor([1, 1], dtype=torch.long),
-                "smiles": smiles_str,
-            }
+        data_dict = {
+            "x": torch.tensor(dummy_input, dtype=torch.long),
+            "labels": torch.tensor(dummy_labels, dtype=torch.long),
+            "original_input": torch.tensor(dummy_input, dtype=torch.long),
+            "target_tokens": torch.tensor(dummy_target, dtype=torch.long),
+            "edge_index": torch.tensor([[0, 1], [1, 0]], dtype=torch.long),
+            "edge_attr": torch.tensor([1, 1], dtype=torch.long),
+            "smiles": smiles_str,
+            "dummy": torch.tensor(True, dtype=torch.bool),
+        }
 
-            return Data.from_dict(data_dict)
+        return Data.from_dict(data_dict)

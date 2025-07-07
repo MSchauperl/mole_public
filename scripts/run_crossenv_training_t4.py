@@ -3,23 +3,22 @@
 Convenience script to run cross-environment MLM training on GuacaMol dataset
 
 This script provides an easy way to start training with optimized defaults for
-the full GuacaMol dataset (~1.3M molecules). You can modify the parameters
-below or pass your own arguments.
+the full GuacaMol dataset (~1.3M molecules), specifically tailored for
+a Tesla T4 GPU (16 GB memory).
 """
 
 import subprocess
 import sys
 from pathlib import Path
 
-
-# Default training parameters optimized for NVIDIA A100 (40/80 GB memory)
+# Default training parameters optimized for Tesla T4 (16 GB memory)
 default_params = {
     "--train_data": "data/guacamol_v1_all.smiles",  # Full GuacaMol dataset
     "--input_vocab": "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
     "--target_vocab": "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
     "--output_dir": "outputs/guacamol_crossenv_mlm",
-    "--model_name": "guacamol_r0_to_r1_functional_a100_optimized",
-    # Model configuration (same as Tesla T4 to allow for larger batches)
+    "--model_name": "guacamol_r0_to_r1_functional_t4_optimized",
+    # Model configuration (BERT-base size, should fit on T4 with smaller batches)
     "--hidden_size": "768",
     "--num_hidden_layers": "12",
     "--num_attention_heads": "12",
@@ -29,30 +28,30 @@ default_params = {
     "--input_radius": "0",
     "--target_radius": "1",
     "--target_use_features": "",  # Flag for functional environments
-    # Training configuration (NVIDIA A100 optimized for ~1.6M molecules)
-    "--batch_size": "256",  # Increased from 32 for A100
-    "--learning_rate": "1e-4",  # Keep same learning rate
+    # Training configuration (Tesla T4 optimized)
+    "--batch_size": "32",  # Reduced from 256 for T4
+    "--learning_rate": "1e-4",
     "--weight_decay": "0.01",
-    "--warmup_steps": "5000",  # Adjusted for dataset size
-    "--max_epochs": "1",
+    "--warmup_steps": "5000",
+    "--max_epochs": "30",  # Increased for a more complete run on a single machine
     "--validation_split": "0.05",
-    "--val_check_interval": "0.5",  # Validate twice per epoch
-    # Hardware configuration (NVIDIA A100 optimized)
+    "--val_check_interval": "0.5",
+    # Hardware configuration (Tesla T4 optimized)
     "--gpus": "1",
-    "--num_workers": "16",  # Increased workers for A100 (tune based on CPU cores)
-    "--precision": "16",  # A100 is highly optimized for mixed precision
-    "--accumulate_grad_batches": "2",  # Adjust accumulation for larger batch size
+    "--num_workers": "4",  # Reduced for typical T4 setups
+    "--precision": "16",  # Mixed precision is crucial for T4 memory
+    "--accumulate_grad_batches": "16",  # Increased to maintain effective batch size
     "--gradient_clip_val": "1.0",
     # Memory and efficiency optimizations
-    "--max_length": "256",  # Keep sequence length same for comparability
+    "--max_length": "256",
     # Misc
     "--seed": "42",
-    "--log_predictions": "",  # Flag to log examples
-    #"--use_torch_compile": "",  # Flag to enable torch.compile
+    "--log_predictions": "",
 }
 
 
 def main():
+    """Main function to run the T4-optimized training script."""
     # Build command
     script_path = (
         Path(__file__).parent.parent / "mole" / "cli" / "train_crossenv_mlm.py"
@@ -71,11 +70,11 @@ def main():
     print("🚀 Starting MolE Cross-Environment MLM Training on GuacaMol Dataset")
     print("=" * 70)
     print("📊 Dataset: GuacaMol (~1.6M molecules)")
-    print("🎯 GPU: NVIDIA A100 (40/80 GB VRAM) - Optimized Configuration")
+    print("🎯 GPU: Tesla T4 (16 GB VRAM) - Optimized Configuration")
     hidden_size = default_params["--hidden_size"]
     num_layers = default_params["--num_hidden_layers"]
     print(
-        f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers (NVIDIA A100 optimized)"
+        f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers (Tesla T4 optimized)"
     )
 
     target_radius = default_params["--target_radius"]
@@ -111,4 +110,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() 

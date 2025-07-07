@@ -34,8 +34,8 @@ from mole.data.crossenv_datamodule import CrossEnvDataModule
 from mole.models.crossenv_mlm import CrossEnvMLMModel, CrossEnvMLM
 
 
-def parse_args():
-    """Parse command line arguments"""
+def get_arg_parser():
+    """Get argument parser."""
     parser = argparse.ArgumentParser(
         description="Train Cross-Environment MLM Model",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -228,6 +228,12 @@ def parse_args():
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
+    return parser
+
+
+def parse_args():
+    """Parse command line arguments"""
+    parser = get_arg_parser()
     return parser.parse_args()
 
 
