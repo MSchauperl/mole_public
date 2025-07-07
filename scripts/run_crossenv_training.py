@@ -42,7 +42,7 @@ def main():
         "--gpus": "1",
         "--num_workers": "4",  # Increased workers for Tesla T4
         "--precision": "16",  # Mixed precision for memory efficiency
-        "--accumulate_grad_batches": "4",  # Reduced accumulation since batch_size is higher
+        "--accumulate_grad_batches": "16",  # Reduced accumulation since batch_size is higher
         "--gradient_clip_val": "1.0",  # Add gradient clipping for stability
         # Memory and efficiency optimizations
         "--max_length": "256",  # Increased sequence length for Tesla T4

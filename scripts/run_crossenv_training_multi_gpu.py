@@ -16,35 +16,40 @@ def get_multi_gpu_config(num_gpus=2):
     
     # Base configuration for Tesla T4
     base_config = {
-        "--train_data": "data/guacamol_v1_all.smiles",
+        "--train_data": "data/guacamol_v1_all.smiles",  # Full GuacaMol dataset
         "--input_vocab": "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
         "--target_vocab": "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
         "--output_dir": "outputs/guacamol_crossenv_mlm",
-        "--model_name": f"guacamol_r0_to_r1_functional_{num_gpus}gpu_optimized",
-        # Model configuration (scales with number of GPUs)
-        "--hidden_size": "768",
-        "--num_hidden_layers": "12",
-        "--num_attention_heads": "12", 
-        "--intermediate_size": "3072",
+        "--model_name": "guacamol_r0_to_r1_functional_tesla_t4_optimized",
+        # Model configuration (Tesla T4 optimized - 15.36 GB memory)
+        "--hidden_size": "768",  # Increased from 384 for Tesla T4
+        "--num_hidden_layers": "12",  # Increased from 6 for Tesla T4
+        "--num_attention_heads": "12",  # Increased from 6 for Tesla T4
+        "--intermediate_size": "3072",  # Increased from 1536 for Tesla T4
         "--dropout": "0.1",
         # Environment configuration
         "--input_radius": "0",
         "--target_radius": "1",
-        "--target_use_features": "",
-        # Training configuration (scales with GPUs)
-        "--learning_rate": "1e-4",
+        "--target_use_features": "",  # Flag for functional environments
+        # Training configuration (Tesla T4 optimized for ~1.6M molecules)
+        "--batch_size": "32",  # Increased from 16 for Tesla T4
+        "--learning_rate": "1e-4",  # Keep same learning rate
         "--weight_decay": "0.01",
-        "--warmup_steps": "5000",
-        "--max_epochs": "30",
-        "--validation_split": "0.05",
-        "--val_check_interval": "0.5",
+        "--warmup_steps": "5000",  # Adjusted for dataset size
+        "--max_epochs": "30",  # Can reduce epochs due to larger model capacity
+        "--validation_split": "0.05",  # Smaller validation split (still ~80k molecules)
+        "--val_check_interval": "0.5",  # Validate twice per epoch
         # Hardware configuration
         "--gpus": str(num_gpus),
-        "--precision": "16",
-        "--gradient_clip_val": "1.0",
+        "--num_workers": "4",  # Increased workers for Tesla T4
+        "--precision": "16",  # Mixed precision for memory efficiency
+        "--accumulate_grad_batches": "16",  # Reduced accumulation since batch_size is higher
+        "--gradient_clip_val": "1.0",  # Add gradient clipping for stability
+        # Memory and efficiency optimizations
+        "--max_length": "256",  # Increased sequence length for Tesla T4
         # Misc
         "--seed": "42",
-        "--log_predictions": "",
+        "--log_predictions": "",  # Flag to log examples
     }
     
     # Scale parameters based on number of GPUs
@@ -52,16 +57,16 @@ def get_multi_gpu_config(num_gpus=2):
         # Single GPU Tesla T4 optimized
         base_config.update({
             "--batch_size": "32",
-            "--num_workers": "4",
+            "--num_workers": "8",
             "--accumulate_grad_batches": "4",
             "--max_length": "256",
         })
     elif num_gpus == 2:
-        # Dual GPU optimized
+        # Dual GPU optimized - using same params as single GPU
         base_config.update({
-            "--batch_size": "24",  # 24 per GPU = 48 total
+            "--batch_size": "32",  # 32 per GPU = 64 total
             "--num_workers": "6",   # 6 per GPU = 12 total
-            "--accumulate_grad_batches": "3",  # Effective batch = 48 * 3 = 144
+            "--accumulate_grad_batches": "4",  # Effective batch = 64 * 4 = 256
             "--max_length": "256",
         })
     elif num_gpus == 4:
