@@ -255,24 +255,34 @@ class CrossEnvMLM(Model):
         input_ids: torch.Tensor,
         input_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        relative_pos: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Dict[str, Union[torch.Tensor, float, Any]]:
         """Forward pass through the model"""
         return self.model(
-            input_ids=input_ids, input_mask=input_mask, labels=labels, **kwargs
+            input_ids=input_ids,
+            input_mask=input_mask,
+            labels=labels,
+            position_ids=position_ids,
+            relative_pos=relative_pos,
+            **kwargs
         )
 
     def training_step(
         self, batch, batch_idx: int
     ) -> Dict[str, Union[torch.Tensor, float]]:
         """Training step"""
-        from torch_geometric.utils import to_dense_batch
+        from torch_geometric.utils import to_dense_batch, to_dense_adj
 
         # Convert batch to dense format
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
-        # Let the encoder handle relative position creation
-        relative_pos = None
+        
+        # Create dense relative position matrix from graph connections
+        relative_pos = to_dense_adj(
+            edge_index=batch.edge_index, batch=batch.batch, edge_attr=batch.edge_attr
+        )
 
         # Forward pass
         outputs = self(
@@ -315,13 +325,16 @@ class CrossEnvMLM(Model):
         self, batch, batch_idx: int
     ) -> Dict[str, Union[torch.Tensor, float]]:
         """Validation step"""
-        from torch_geometric.utils import to_dense_batch
+        from torch_geometric.utils import to_dense_batch, to_dense_adj
 
         # Convert batch to dense format
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
-        # Let the encoder handle relative position creation
-        relative_pos = None
+
+        # Create dense relative position matrix from graph connections
+        relative_pos = to_dense_adj(
+            edge_index=batch.edge_index, batch=batch.batch, edge_attr=batch.edge_attr
+        )
 
         # Forward pass
         outputs = self(

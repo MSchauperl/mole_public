@@ -40,7 +40,7 @@ def main():
         "--val_check_interval": "0.5",  # Validate twice per epoch
         # Hardware configuration (Tesla T4 optimized)
         "--gpus": "1",
-        "--num_workers": "4",  # Increased workers for Tesla T4
+        "--num_workers": "2",  # Increased workers for Tesla T4
         "--precision": "16",  # Mixed precision for memory efficiency
         "--accumulate_grad_batches": "16",  # Reduced accumulation since batch_size is higher
         "--gradient_clip_val": "1.0",  # Add gradient clipping for stability
