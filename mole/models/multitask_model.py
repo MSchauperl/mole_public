@@ -107,6 +107,11 @@ class MultiTaskModel(CrossEnvMLMModel):
         outputs = {"mlm_logits": base_outputs["logits"]}
         if "loss" in base_outputs:
             outputs["mlm_loss"] = base_outputs["loss"]
+        if "accuracy" in base_outputs:
+            outputs["accuracy"] = base_outputs["accuracy"]
+        if "perplexity" in base_outputs:
+            outputs["perplexity"] = base_outputs["perplexity"]
+
 
         # Use the hidden state of the [CLS] token for regression
         # The CLS token is at position 0
@@ -189,6 +194,8 @@ class MultiTaskLightningModule(CrossEnvMLM):
                 "train/total_loss": total_loss,
                 "train/mlm_loss": mlm_loss,
                 "train/regression_loss": regression_loss,
+                "train/accuracy": outputs.get("accuracy", 0.0),
+                "train/perplexity": outputs.get("perplexity", 1.0),
             },
             on_step=True,
             on_epoch=True,
@@ -202,6 +209,10 @@ class MultiTaskLightningModule(CrossEnvMLM):
         """Perform a single validation step."""
         from torch_geometric.utils import to_dense_batch
 
+        # Ensure batch is not empty to prevent errors with to_dense_batch
+        if batch.num_graphs == 0:
+            return {"val_loss": torch.tensor(0.0, device=self.device)}
+
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
 
@@ -210,15 +221,34 @@ class MultiTaskLightningModule(CrossEnvMLM):
             input_ids=input_ids, input_mask=input_mask, labels=labels
         )
 
-        # Calculate losses
-        mlm_loss = outputs.get("mlm_loss", 0.0)
-        regression_targets = torch.stack([batch.clogp, batch.mw], dim=1)
-        regression_preds = outputs["regression_preds"]
-        regression_loss = self.regression_loss_fn(
-            regression_preds, regression_targets
-        )
+        # Calculate MLM loss safely
+        mlm_loss = outputs.get("mlm_loss", torch.tensor(0.0, device=self.device))
+
+        # Calculate regression loss safely
+        if hasattr(batch, "clogp") and hasattr(batch, "log_mw"):
+            regression_targets = torch.stack([batch.clogp, batch.log_mw], dim=1)
+            regression_preds = outputs["regression_preds"]
+            regression_loss = self.regression_loss_fn(
+                regression_preds, regression_targets
+            )
+        else:
+            regression_loss = torch.tensor(0.0, device=self.device)
+
+        # Combine losses
         total_loss = (self.mlm_loss_weight * mlm_loss) + (
             self.regression_loss_weight * regression_loss
+        )
+
+        # Temporary print for debugging validation metrics
+        accuracy = outputs.get("accuracy", 0.0)
+        perplexity = outputs.get("perplexity", 1.0)
+        print(
+            f"[Val Step {batch_idx}] | "
+            f"Total Loss: {total_loss.item():.4f}, "
+            f"MLM Loss: {mlm_loss.item():.4f}, "
+            f"Reg Loss: {regression_loss.item():.4f}, "
+            f"Accuracy: {accuracy if isinstance(accuracy, float) else accuracy.item():.4f}, "
+            f"Perplexity: {perplexity if isinstance(perplexity, float) else perplexity.item():.4f}"
         )
 
         # Log metrics
