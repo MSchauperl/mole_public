@@ -7,7 +7,7 @@ In addition to the MLM task, it adds targets for predicting molecular properties
 - MLM Input: Radius 0 structural atom environments
 - MLM Target: Radius 1 functional atom environments
 - Regression Target 1: ClogP (logarithm of partition coefficient)
-- Regression Target 2: Molecular Weight
+- Regression Target 2: log(Molecular Weight)
 """
 
 from typing import Dict
@@ -30,7 +30,7 @@ class MultiTaskMolDataset(CrossEnvMolDataset):
         # If the base class returned a dummy sample, add placeholder properties and pass through
         if hasattr(data, "dummy") and data.dummy:
             data.clogp = torch.tensor(0.0, dtype=torch.float)
-            data.mw = torch.tensor(0.0, dtype=torch.float)
+            data.log_mw = torch.tensor(0.0, dtype=torch.float)
             return data
 
         try:
@@ -41,13 +41,13 @@ class MultiTaskMolDataset(CrossEnvMolDataset):
             if mol is None:
                 raise ValueError(f"Invalid SMILES in base data: {smiles_str}")
 
-            # Calculate ClogP and Molecular Weight
+            # Calculate ClogP and log(Molecular Weight)
             clogp = Descriptors.MolLogP(mol)
             mw = Descriptors.MolWt(mol)
 
             # Add properties to the data object
             data.clogp = torch.tensor(clogp, dtype=torch.float)
-            data.mw = torch.tensor(mw, dtype=torch.float)
+            data.log_mw = torch.log(torch.tensor(mw, dtype=torch.float) + 1e-6)
 
         except Exception as e:
             # In case of any error during property calculation, call the fail-case handler
@@ -61,5 +61,5 @@ class MultiTaskMolDataset(CrossEnvMolDataset):
         # Get a dummy sample from the parent and add dummy properties
         data = super().__handle_fail_case__(idx, smiles_str)
         data.clogp = torch.tensor(0.0, dtype=torch.float)
-        data.mw = torch.tensor(0.0, dtype=torch.float)
+        data.log_mw = torch.tensor(0.0, dtype=torch.float)
         return data 

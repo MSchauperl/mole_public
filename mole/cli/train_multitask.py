@@ -112,6 +112,16 @@ def main():
         regression_loss_weight=args.regression_loss_weight,
     )
 
+    # Model compilation (if enabled)
+    if args.use_torch_compile:
+        logging.info("Compiling model with torch.compile()...")
+        try:
+            lightning_module = torch.compile(lightning_module)
+            logging.info("Model compiled successfully.")
+        except Exception as e:
+            logging.error(f"Failed to compile model: {e}")
+            logging.warning("Continuing without torch.compile().")
+
     # Callbacks and Logger
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"{args.output_dir}/{args.model_name}/checkpoints",

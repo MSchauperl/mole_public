@@ -172,7 +172,7 @@ class MultiTaskLightningModule(CrossEnvMLM):
         mlm_loss = outputs.get("mlm_loss", 0.0)
 
         # Calculate regression loss
-        regression_targets = torch.stack([batch.clogp, batch.mw], dim=1)
+        regression_targets = torch.stack([batch.clogp, batch.log_mw], dim=1)
         regression_preds = outputs["regression_preds"]
         regression_loss = self.regression_loss_fn(
             regression_preds, regression_targets
@@ -227,6 +227,8 @@ class MultiTaskLightningModule(CrossEnvMLM):
                 "val/total_loss": total_loss,
                 "val/mlm_loss": mlm_loss,
                 "val/regression_loss": regression_loss,
+                "val/accuracy": outputs.get("accuracy", 0.0),
+                "val/perplexity": outputs.get("perplexity", 1.0),
             },
             on_epoch=True,
             prog_bar=True,
