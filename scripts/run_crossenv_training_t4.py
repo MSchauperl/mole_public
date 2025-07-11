@@ -13,7 +13,7 @@ from pathlib import Path
 
 # Default training parameters optimized for Tesla T4 (16 GB memory)
 default_params = {
-    "--train_data": "data/guacamol_v1_all.smiles",  # Full GuacaMol dataset
+    "--train_data": "data/guacamol_v1_small.smiles",  # Full GuacaMol dataset
     "--input_vocab": "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
     "--target_vocab": "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
     "--output_dir": "outputs/guacamol_crossenv_mlm",

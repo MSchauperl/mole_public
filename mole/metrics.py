@@ -7,6 +7,7 @@ from torchmetrics import MeanAbsoluteError
 from torchmetrics import MeanSquaredError
 from torchmetrics import Metric
 from torchmetrics import PearsonCorrCoef
+from torchmetrics import Perplexity
 from torchmetrics import R2Score
 from torchmetrics.classification.stat_scores import BinaryStatScores
 from torchmetrics.functional.classification.precision_recall import (
@@ -43,6 +44,12 @@ class MetricsDict(torch.nn.ModuleDict):
         for metric in self.values():
             metric.reset()
 
+    def __add__(self, other: "MetricsDict") -> "MetricsDict":
+        """
+        Merges two MetricsDicts.
+        """
+        return MetricsDict(**self, **other)
+
 
 class BinaryBalancedAccuracy(BinaryStatScores):
     is_differentiable: bool = False
@@ -66,19 +73,54 @@ class BinaryBalancedAccuracy(BinaryStatScores):
         return (binary_specificity + binary_recall) * 0.5
 
 
-# def get_classification_metrics() -> MetricsDict:
-#     return MetricsDict(accuracy = Accuracy(task='binary'),
-#                        balanced_accuracy =  BinaryBalancedAccuracy(),
-#                        au_roc = AUROC(task="binary"),
-#                        au_prc = AveragePrecision(task="binary"))
+def get_regression_metrics(prefix: str = "") -> MetricsDict:
+    """
+    Returns a MetricsDict for regression tasks.
+    Args:
+        prefix: A prefix to be added to the metric names.
+    """
+    if prefix and not prefix.endswith("/"):
+        prefix += "/"
 
-
-def get_regression_metrics() -> MetricsDict:
     return MetricsDict(
-        mae=MeanAbsoluteError(),
-        rmse=MeanSquaredError(squared=False),
-        r_squared=R2Score(),
-        pearson_corr_coef=PearsonCorrCoef(),
+        **{
+            f"{prefix}mae": MeanAbsoluteError(),
+            f"{prefix}rmse": MeanSquaredError(squared=False),
+            f"{prefix}r_squared": R2Score(),
+            f"{prefix}pearson_corr_coef": PearsonCorrCoef(),
+        }
+    )
+
+
+def get_mlm_metrics(
+    prefix: str = "", num_classes: int = -1, ignore_index: int = -100
+) -> MetricsDict:
+    """
+    Returns a MetricsDict for MLM tasks.
+    Args:
+        prefix: A prefix to be added to the metric names.
+        num_classes: The number of classes in the vocabulary.
+        ignore_index: The index to be ignored in the calculation.
+    """
+    if prefix and not prefix.endswith("/"):
+        prefix += "/"
+
+    return MetricsDict(
+        **{
+            f"{prefix}accuracy": Accuracy(
+                task="multiclass",
+                num_classes=num_classes,
+                ignore_index=ignore_index,
+                top_k=1,
+            ),
+            f"{prefix}accuracy_top5": Accuracy(
+                task="multiclass",
+                num_classes=num_classes,
+                ignore_index=ignore_index,
+                top_k=5,
+            ),
+            f"{prefix}perplexity": Perplexity(ignore_index=ignore_index),
+        }
     )
 
 
