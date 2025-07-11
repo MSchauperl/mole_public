@@ -177,13 +177,23 @@ class MultiTaskLightningModule(CrossEnvMLM):
 
     def training_step(self, batch, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Perform a single training step."""
-        from torch_geometric.utils import to_dense_batch
+        from torch_geometric.utils import to_dense_batch, to_dense_adj
 
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
 
-        # Forward pass through the multi-task model
-        outputs = self.model(input_ids=input_ids, input_mask=input_mask, labels=labels)
+        # Create dense relative position matrix from graph connections
+        relative_pos = to_dense_adj(
+            edge_index=batch.edge_index, batch=batch.batch, edge_attr=batch.edge_attr
+        )
+
+        # Forward pass
+        outputs = self(
+            input_ids=input_ids,
+            input_mask=input_mask,
+            labels=labels,
+            relative_pos=relative_pos,
+        )
 
         # Calculate MLM loss (already done in the model's forward pass)
         mlm_loss = outputs.get("mlm_loss", 0.0)
@@ -286,7 +296,7 @@ class MultiTaskLightningModule(CrossEnvMLM):
 
     def validation_step(self, batch, batch_idx: int) -> Dict[str, torch.Tensor]:
         """Perform a single validation step."""
-        from torch_geometric.utils import to_dense_batch
+        from torch_geometric.utils import to_dense_batch,to_dense_adj
 
         # Ensure batch is not empty to prevent errors with to_dense_batch
         if batch.num_graphs == 0:
@@ -295,8 +305,19 @@ class MultiTaskLightningModule(CrossEnvMLM):
         input_ids, input_mask = to_dense_batch(batch.x, batch.batch, fill_value=0)
         labels, _ = to_dense_batch(batch.labels, batch.batch, fill_value=-100)
 
+        # Create dense relative position matrix from graph connections
+        relative_pos = to_dense_adj(
+            edge_index=batch.edge_index, batch=batch.batch, edge_attr=batch.edge_attr
+        )
+
         # Forward pass
-        outputs = self.model(input_ids=input_ids, input_mask=input_mask, labels=labels)
+        outputs = self(
+            input_ids=input_ids,
+            input_mask=input_mask,
+            labels=labels,
+            relative_pos=relative_pos,
+        )
+
 
         # Calculate MLM loss safely
         mlm_loss = outputs.get("mlm_loss", torch.tensor(0.0, device=self.device))
