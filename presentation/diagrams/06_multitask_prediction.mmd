@@ -1,0 +1,43 @@
+graph TD
+    A[Final Hidden States] --> B[Context Token Extraction<br/>CLS Token]
+    B --> C[Dense Layer<br/>hidden_size → hidden_size]
+    C --> D[Activation Function<br/>Tanh]
+    D --> E[Stable Dropout]
+    
+    E --> F[Task Head 1<br/>Solubility]
+    E --> G[Task Head 2<br/>Toxicity]
+    E --> H[Task Head 3<br/>LogP]
+    E --> I[Task Head N<br/>Other Properties]
+    
+    F --> J[Regression Output]
+    G --> K[Classification Output]
+    H --> L[Regression Output]
+    I --> M[Various Output Types]
+    
+    subgraph "Shared Processing"
+        B
+        C
+        D
+        E
+    end
+    
+    subgraph "Task-Specific Heads"
+        F
+        G
+        H
+        I
+    end
+    
+    subgraph "Outputs"
+        J
+        K
+        L
+        M
+    end
+    
+    style A fill:#e1f5fe
+    style E fill:#f3e5f5
+    style J fill:#c8e6c9
+    style K fill:#c8e6c9
+    style L fill:#c8e6c9
+    style M fill:#c8e6c9

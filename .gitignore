@@ -5,3 +5,10 @@
 *.pt
 *.json
 outputs/
+
+# Environment variables and secrets
+.env
+*.env
+credentials.json
+*.credentials
+refresh_token.txt

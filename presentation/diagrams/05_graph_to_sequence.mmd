@@ -1,0 +1,38 @@
+graph TD
+    A[Molecular Graph] --> B[Nodes: Atoms with Features]
+    A --> C[Edges: Chemical Bonds]
+    
+    B --> D[Atom Environment Extraction]
+    C --> E[Bond Type Information]
+    
+    D --> F[Tokenization]
+    E --> F
+    
+    F --> G[Sequence of Atom Tokens]
+    G --> H[Padding for Batch Processing]
+    
+    C --> I[Adjacency Matrix Creation]
+    I --> J[Relative Position Matrix]
+    
+    subgraph "Graph Components"
+        B
+        C
+    end
+    
+    subgraph "Tokenization Process"
+        D
+        E
+        F
+        G
+        H
+    end
+    
+    subgraph "Position Encoding"
+        I
+        J
+    end
+    
+    style A fill:#ffecb3
+    style G fill:#c8e6c9
+    style H fill:#c8e6c9
+    style J fill:#e1f5fe

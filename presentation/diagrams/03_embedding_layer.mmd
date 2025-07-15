@@ -1,0 +1,30 @@
+graph TD
+    A[Atom Environment Tokens] --> B[Word Embeddings]
+    C[Position IDs] --> D[Position Embeddings]
+    E[Token Type IDs] --> F[Token Type Embeddings]
+    
+    B --> G[Sum]
+    D --> G
+    F --> G
+    
+    G --> H[Projection Layer<br/>if embedding_size ≠ hidden_size]
+    H --> I[Masked Layer Normalization]
+    I --> J[Stable Dropout]
+    J --> K[Final Embeddings]
+    
+    subgraph "Embedding Components"
+        B
+        D
+        F
+    end
+    
+    subgraph "Post-Processing"
+        H
+        I
+        J
+    end
+    
+    style A fill:#ffecb3
+    style C fill:#ffecb3
+    style E fill:#ffecb3
+    style K fill:#c8e6c9

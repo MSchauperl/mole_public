@@ -1,0 +1,38 @@
+graph TD
+    A[Input Hidden States] --> B[Disentangled Self-Attention]
+    A --> C[Residual Connection 1]
+    B --> D[Attention Dropout]
+    D --> C
+    C --> E[Layer Normalization 1]
+    
+    E --> F[Feed-Forward Network]
+    E --> G[Residual Connection 2]
+    F --> H[Intermediate Layer<br/>hidden_size → intermediate_size]
+    H --> I[Activation Function<br/>GELU/ReLU]
+    I --> J[Output Layer<br/>intermediate_size → hidden_size]
+    J --> K[FFN Dropout]
+    K --> G
+    G --> L[Layer Normalization 2]
+    L --> M[Output Hidden States]
+    
+    subgraph "Attention Sub-layer"
+        B
+        D
+        C
+        E
+    end
+    
+    subgraph "Feed-Forward Sub-layer"
+        F
+        H
+        I
+        J
+        K
+        G
+        L
+    end
+    
+    style A fill:#e1f5fe
+    style M fill:#e1f5fe
+    style B fill:#f3e5f5
+    style F fill:#fff3e0

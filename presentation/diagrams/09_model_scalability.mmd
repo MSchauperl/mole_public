@@ -1,0 +1,30 @@
+graph TD
+    A[Model Configuration] --> B[Small Model<br/>100M Parameters]
+    A --> C[Medium Model<br/>300M Parameters]
+    A --> D[Large Model<br/>768M Parameters]
+    A --> E[XL Model<br/>1.2B Parameters]
+    
+    B --> F[Speed: 5000 mol/sec<br/>Memory: 8GB<br/>Accuracy: 0.85]
+    C --> G[Speed: 3000 mol/sec<br/>Memory: 16GB<br/>Accuracy: 0.88]
+    D --> H[Speed: 1500 mol/sec<br/>Memory: 32GB<br/>Accuracy: 0.91]
+    E --> I[Speed: 800 mol/sec<br/>Memory: 64GB<br/>Accuracy: 0.93]
+    
+    subgraph "Model Sizes"
+        B
+        C
+        D
+        E
+    end
+    
+    subgraph "Performance Metrics"
+        F
+        G
+        H
+        I
+    end
+    
+    style A fill:#ffecb3
+    style F fill:#c8e6c9
+    style G fill:#c8e6c9
+    style H fill:#c8e6c9
+    style I fill:#c8e6c9

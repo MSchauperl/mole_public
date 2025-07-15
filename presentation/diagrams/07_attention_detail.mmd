@@ -1,0 +1,57 @@
+graph TD
+    A[Input Sequence] --> B[Query Projection]
+    A --> C[Key Projection]
+    A --> D[Value Projection]
+    
+    B --> E[Content Queries]
+    C --> F[Content Keys]
+    D --> G[Values]
+    
+    H[Relative Position<br/>Embeddings] --> I[Position Query Projection]
+    H --> J[Position Key Projection]
+    
+    I --> K[Position Queries]
+    J --> L[Position Keys]
+    
+    E --> M[Content-to-Content<br/>Attention]
+    E --> N[Content-to-Position<br/>Attention]
+    K --> O[Position-to-Content<br/>Attention]
+    K --> P[Position-to-Position<br/>Attention]
+    
+    F --> M
+    L --> N
+    F --> O
+    L --> P
+    
+    M --> Q[Sum All Attention Types]
+    N --> Q
+    O --> Q
+    P --> Q
+    
+    Q --> R[Masked Softmax<br/>XSoftmax]
+    R --> S[Attention Weights]
+    S --> T[Weighted Sum with Values]
+    G --> T
+    T --> U[Output Representation]
+    
+    subgraph "Standard Projections"
+        B
+        C
+        D
+    end
+    
+    subgraph "Position Projections"
+        I
+        J
+    end
+    
+    subgraph "Attention Types"
+        M
+        N
+        O
+        P
+    end
+    
+    style A fill:#ffecb3
+    style H fill:#ffecb3
+    style U fill:#c8e6c9

@@ -1,0 +1,31 @@
+graph TD
+    subgraph "Disentangled Attention Types"
+        A[Content Queries] --> E[c2c: Content-to-Content]
+        A --> F[c2p: Content-to-Position]
+        B[Position Queries] --> G[p2c: Position-to-Content]
+        B --> H[p2p: Position-to-Position]
+        
+        C[Content Keys] --> E
+        D[Position Keys] --> F
+        C --> G
+        D --> H
+    end
+    
+    subgraph "Attention Computation"
+        E --> I[Sum All Attention Types]
+        F --> I
+        G --> I
+        H --> I
+        I --> J[Scaled Softmax]
+        J --> K[Weighted Sum with Values]
+        K --> L[Output Representation]
+    end
+    
+    style A fill:#ffecb3
+    style B fill:#ffecb3
+    style C fill:#c8e6c9
+    style D fill:#c8e6c9
+    style E fill:#e1f5fe
+    style F fill:#e1f5fe
+    style G fill:#f3e5f5
+    style H fill:#f3e5f5

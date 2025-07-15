@@ -1,0 +1,28 @@
+graph TD
+    A[Molecular Graph] --> B[Atom Environment Tokenization]
+    B --> C[Embedding Layer]
+    C --> D[Multi-Layer Transformer]
+    D --> E[Prediction Head]
+    E --> F[Molecular Properties]
+    
+    subgraph "Input Processing"
+        A
+        B
+    end
+    
+    subgraph "Core Architecture"
+        C
+        D
+    end
+    
+    subgraph "Output"
+        E
+        F
+    end
+    
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#f3e5f5
+    style D fill:#f3e5f5
+    style E fill:#e8f5e8
+    style F fill:#e8f5e8

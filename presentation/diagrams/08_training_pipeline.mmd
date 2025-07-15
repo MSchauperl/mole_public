@@ -1,0 +1,45 @@
+graph TD
+    A[Molecular Datasets] --> B[Data Loading<br/>PyTorch Geometric]
+    B --> C[Batch Processing<br/>to_dense_batch]
+    C --> D[MolE Model<br/>Forward Pass]
+    
+    D --> E[Task-Specific<br/>Loss Computation]
+    E --> F[Multi-Task<br/>Loss Aggregation]
+    F --> G[Backpropagation]
+    
+    G --> H[Gradient Clipping]
+    H --> I[Optimizer Step<br/>AdamW]
+    I --> J[Learning Rate<br/>Scheduling]
+    
+    J --> K[Validation<br/>Evaluation]
+    K --> L[Metric Computation]
+    L --> M[Checkpointing]
+    
+    subgraph "Data Processing"
+        A
+        B
+        C
+    end
+    
+    subgraph "Model Training"
+        D
+        E
+        F
+        G
+    end
+    
+    subgraph "Optimization"
+        H
+        I
+        J
+    end
+    
+    subgraph "Evaluation"
+        K
+        L
+        M
+    end
+    
+    style A fill:#e1f5fe
+    style D fill:#f3e5f5
+    style M fill:#c8e6c9
