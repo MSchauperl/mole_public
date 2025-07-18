@@ -4,4 +4,7 @@
 *.pyc
 *.pt
 *.json
+*.tab
+*.parquet
+*.csv
 outputs/

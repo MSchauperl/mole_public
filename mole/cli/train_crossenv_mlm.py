@@ -257,7 +257,7 @@ def create_model_config(args) -> Dict[str, Any]:
         "type_vocab_size": 0,
         "vocab_size": 1000,  # Will be overridden by actual input vocab size
         "norm_rel_ebd": "layer_norm",
-        "position_biased_input": True,
+        "position_biased_input": False,
         "pos_att_type": "p2c|c2p",
         "relative_attention": True,
         "max_relative_positions": 128,
