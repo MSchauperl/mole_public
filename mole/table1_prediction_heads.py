@@ -111,7 +111,9 @@ class Table1PredictionHeads(nn.Module):
     and provides unified training and evaluation interfaces.
     """
     
-    def __init__(self, hidden_dim: int, dropout: float = 0.1):
+    def __init__(self, hidden_dim: int, dropout: float = 0.1, 
+                 regression_loss_weight: float = 1.0, 
+                 classification_loss_weight: float = 1.0):
         super().__init__()
         
         # Get task information
@@ -136,9 +138,13 @@ class Table1PredictionHeads(nn.Module):
         self.task_type_mapping = get_task_type_mapping()
         self.metric_mapping = get_metric_mapping()
         
-        # Loss weights (can be tuned)
-        self.regression_loss_weight = 1.0
-        self.classification_loss_weight = 1.0
+        # Loss weights (configurable for balancing)
+        self.regression_loss_weight = regression_loss_weight
+        self.classification_loss_weight = classification_loss_weight
+        
+        # Log the loss weights for debugging
+        import logging
+        logging.info(f"Loss weights: Regression={self.regression_loss_weight:.4f}, Classification={self.classification_loss_weight:.4f}")
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -177,25 +183,51 @@ class Table1PredictionHeads(nn.Module):
             Dictionary containing individual and combined losses
         """
         # Regression loss (MSE)
-        if regression_mask is not None:
-            regression_loss = F.mse_loss(
-                regression_output * regression_mask,
-                regression_targets * regression_mask,
-                reduction='sum'
-            ) / (regression_mask.sum() + 1e-8)
+        if regression_mask is not None and regression_mask.sum() > 0:
+            # Apply mask properly - only compute loss for valid samples
+            # regression_mask has shape [batch_size, num_regression_tasks]
+            # We need to apply it to each task separately
+            regression_losses = []
+            for i in range(regression_output.shape[1]):
+                task_mask = regression_mask[:regression_output.shape[0], i]
+                if task_mask.sum() > 0:
+                    task_output = regression_output[:, i][task_mask]
+                    task_targets = regression_targets[:regression_output.shape[0], i][task_mask]
+                    task_loss = F.mse_loss(task_output, task_targets)
+                    regression_losses.append(task_loss)
+            
+            if regression_losses:
+                regression_loss = torch.stack(regression_losses).mean()
+            else:
+                regression_loss = torch.tensor(0.0, device=regression_output.device)
         else:
-            regression_loss = F.mse_loss(regression_output, regression_targets)
+            # Ensure batch sizes match
+            batch_size = min(regression_output.shape[0], regression_targets.shape[0])
+            regression_loss = F.mse_loss(regression_output[:batch_size], regression_targets[:batch_size])
         
         # Classification loss (BCE with logits)
-        if classification_mask is not None:
-            classification_loss = F.binary_cross_entropy_with_logits(
-                classification_output * classification_mask,
-                classification_targets * classification_mask,
-                reduction='sum'
-            ) / (classification_mask.sum() + 1e-8)
+        if classification_mask is not None and classification_mask.sum() > 0:
+            # Apply mask properly - only compute loss for valid samples
+            # classification_mask has shape [batch_size, num_classification_tasks]
+            # We need to apply it to each task separately
+            classification_losses = []
+            for i in range(classification_output.shape[1]):
+                task_mask = classification_mask[:classification_output.shape[0], i]
+                if task_mask.sum() > 0:
+                    task_output = classification_output[:, i][task_mask]
+                    task_targets = classification_targets[:classification_output.shape[0], i][task_mask]
+                    task_loss = F.binary_cross_entropy_with_logits(task_output, task_targets)
+                    classification_losses.append(task_loss)
+            
+            if classification_losses:
+                classification_loss = torch.stack(classification_losses).mean()
+            else:
+                classification_loss = torch.tensor(0.0, device=classification_output.device)
         else:
+            # Ensure batch sizes match
+            batch_size = min(classification_output.shape[0], classification_targets.shape[0])
             classification_loss = F.binary_cross_entropy_with_logits(
-                classification_output, classification_targets
+                classification_output[:batch_size], classification_targets[:batch_size]
             )
         
         # Combined loss
@@ -241,14 +273,12 @@ class Table1PredictionHeads(nn.Module):
             metric = self.metric_mapping[task]
             
             if regression_mask is not None:
-                mask = regression_mask[:, i].detach().cpu().numpy()
-                # Handle single sample case
-                if regression_output_np.shape[0] == 1:
-                    pred = regression_output_np[0, i:i+1]
-                    target = regression_targets_np[0, i:i+1]
+                mask = regression_mask[:regression_output_np.shape[0], i].detach().cpu().numpy()
+                if mask.sum() > 0:
+                    pred = regression_output_np[:, i][mask]
+                    target = regression_targets_np[:regression_output_np.shape[0], i][mask]
                 else:
-                    pred = regression_output_np[mask, i]
-                    target = regression_targets_np[mask, i]
+                    continue  # Skip if no valid samples
             else:
                 pred = regression_output_np[:, i]
                 target = regression_targets_np[:, i]
@@ -262,29 +292,32 @@ class Table1PredictionHeads(nn.Module):
                 if metric == 'MAE':
                     metrics[f'{task}_MAE'] = mean_absolute_error(target, pred)
                 elif metric == 'Spearman':
-                    corr, _ = spearmanr(target, pred)
-                    metrics[f'{task}_Spearman'] = corr if not np.isnan(corr) else 0.0
-                elif metric == 'AUPRC':
-                    # For AUPRC, we need to convert to binary classification
-                    # This is a simplified approach - you might need to adjust based on your data
-                    metrics[f'{task}_AUPRC'] = 0.0  # Placeholder
+                    if len(pred) > 1:  # Need at least 2 samples for correlation
+                        corr, _ = spearmanr(target, pred)
+                        metrics[f'{task}_Spearman'] = corr if not np.isnan(corr) else 0.0
+                    else:
+                        metrics[f'{task}_Spearman'] = 0.0
+                # AUPRC tasks are now handled in classification metrics
         
         # Classification metrics
         classification_output_np = classification_output.detach().cpu().numpy()
         classification_targets_np = classification_targets.detach().cpu().numpy()
         
+        # NOTE: This method computes metrics for a single batch
+        # For proper AUROC/AUPRC computation, metrics should be accumulated across all batches
+        # and computed at the end of the epoch. This batch-wise computation will be replaced
+        # by epoch-level metric computation in the Lightning module.
+        
         for i, task in enumerate(self.classification_tasks):
             metric = self.metric_mapping[task]
             
             if classification_mask is not None:
-                mask = classification_mask[:, i].detach().cpu().numpy()
-                # Handle single sample case
-                if classification_output_np.shape[0] == 1:
-                    pred = classification_output_np[0, i:i+1]
-                    target = classification_targets_np[0, i:i+1]
+                mask = classification_mask[:classification_output_np.shape[0], i].detach().cpu().numpy()
+                if mask.sum() > 0:
+                    pred = classification_output_np[:, i][mask]
+                    target = classification_targets_np[:classification_output_np.shape[0], i][mask]
                 else:
-                    pred = classification_output_np[mask, i]
-                    target = classification_targets_np[mask, i]
+                    continue  # Skip if no valid samples
             else:
                 pred = classification_output_np[:, i]
                 target = classification_targets_np[:, i]
@@ -299,9 +332,28 @@ class Table1PredictionHeads(nn.Module):
                     # Convert logits to probabilities
                     pred_proba = 1 / (1 + np.exp(-pred))
                     try:
-                        metrics[f'{task}_AUROC'] = roc_auc_score(target, pred_proba)
+                        # Check if we have both classes (need at least 2 samples with different classes)
+                        if len(pred) > 1 and len(np.unique(target)) > 1:
+                            auc_score = roc_auc_score(target, pred_proba)
+                            metrics[f'{task}_AUROC'] = auc_score
+                        else:
+                            # Skip batch-wise computation - will be handled at epoch level
+                            metrics[f'{task}_AUROC'] = 0.0
                     except ValueError:
                         metrics[f'{task}_AUROC'] = 0.0
+                elif metric == 'AUPRC':
+                    # Convert logits to probabilities
+                    pred_proba = 1 / (1 + np.exp(-pred))
+                    try:
+                        # Check if we have both classes (need at least 2 samples with different classes)
+                        if len(pred) > 1 and len(np.unique(target)) > 1:
+                            auprc_score = average_precision_score(target, pred_proba)
+                            metrics[f'{task}_AUPRC'] = auprc_score
+                        else:
+                            # Skip batch-wise computation - will be handled at epoch level
+                            metrics[f'{task}_AUPRC'] = 0.0
+                    except ValueError:
+                        metrics[f'{task}_AUPRC'] = 0.0
         
         return metrics
     

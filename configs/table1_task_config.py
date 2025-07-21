@@ -11,33 +11,33 @@ TASK_CONFIG = {
     'regression': {
         'tasks': [
             'Caco2', 'Lipophilicity', 'Solubility', 'PPBR', 'VDss',
-            'CYP2D6_inhibition', 'CYP3A4_inhibition', 'CYP2C9_inhibition',
-            'CYP2D6_substrate', 'CYP2C9_substrate', 'Half_life',
-            'Clearance_microsome', 'Clearance_hepatocyte'
+            'Half_life', 'Clearance_microsome', 'Clearance_hepatocyte'
         ],
         'metrics': [
             'MAE', 'MAE', 'MAE', 'MAE', 'Spearman',
-            'AUPRC', 'AUPRC', 'AUPRC', 'AUPRC', 'AUPRC',
             'Spearman', 'Spearman', 'Spearman'
         ],
         'tdc_columns': [
             'ADME_Caco2_Wang', 'ADME_Lipophilicity_AstraZeneca', 'ADME_Solubility_AqSolDB',
-            'ADME_PPBR_AZ', 'ADME_VDss_Lombardo', 'ADME_CYP2D6_Veith',
-            'ADME_CYP3A4_Veith', 'ADME_CYP2C9_Veith', 'ADME_CYP2D6_Substrate_CarbonMangels',
-            'ADME_CYP2C9_Substrate_CarbonMangels', 'ADME_Half_Life_Obach',
+            'ADME_PPBR_AZ', 'ADME_VDss_Lombardo', 'ADME_Half_Life_Obach',
             'ADME_Clearance_Microsome_AZ', 'ADME_Clearance_Hepatocyte_AZ'
         ]
     },
     'classification': {
         'tasks': [
-            'HIA', 'Pgp', 'Bioavailability', 'BBB', 'CYP3A4_substrate'
+            'HIA', 'Pgp', 'Bioavailability', 'BBB', 'CYP3A4_substrate',
+            'CYP2D6_inhibition', 'CYP3A4_inhibition', 'CYP2C9_inhibition',
+            'CYP2D6_substrate', 'CYP2C9_substrate'
         ],
         'metrics': [
-            'AUROC', 'AUROC', 'AUROC', 'AUROC', 'AUROC'
+            'AUROC', 'AUROC', 'AUROC', 'AUROC', 'AUROC',
+            'AUPRC', 'AUPRC', 'AUPRC', 'AUPRC', 'AUPRC'
         ],
         'tdc_columns': [
             'ADME_HIA_Hou', 'ADME_Pgp_Broccatelli', 'ADME_Bioavailability_Ma',
-            'ADME_BBB_Martins', 'ADME_CYP3A4_Substrate_CarbonMangels'
+            'ADME_BBB_Martins', 'ADME_CYP3A4_Substrate_CarbonMangels',
+            'ADME_CYP2D6_Veith', 'ADME_CYP3A4_Veith', 'ADME_CYP2C9_Veith',
+            'ADME_CYP2D6_Substrate_CarbonMangels', 'ADME_CYP2C9_Substrate_CarbonMangels'
         ]
     }
 }

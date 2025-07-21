@@ -106,6 +106,16 @@ def get_arg_parser():
     parser.add_argument(
         "--warmup_steps", type=int, default=10000, help="Number of warmup steps"
     )
+    
+    # Loss balancing arguments
+    parser.add_argument(
+        "--regression_loss_weight", type=float, default=0.004, 
+        help="Weight for regression loss (default: 0.004 to balance with classification)"
+    )
+    parser.add_argument(
+        "--classification_loss_weight", type=float, default=1.0, 
+        help="Weight for classification loss (default: 1.0)"
+    )
     parser.add_argument(
         "--max_epochs", type=int, default=100, help="Maximum number of epochs"
     )
@@ -245,6 +255,21 @@ class Table1MolELightningModule(pl.LightningModule):
         self.train_losses = []
         self.val_losses = []
         
+        # Epoch-level predictions for proper metric computation
+        self.val_predictions = {'classification': [], 'regression': []}
+        self.val_targets = {'classification': [], 'regression': []}
+        self.val_masks = {'classification': [], 'regression': []}
+        
+        # Training predictions for periodic logging (every 5th epoch)
+        self.train_predictions = {'classification': [], 'regression': []}
+        self.train_targets = {'classification': [], 'regression': []}
+        self.train_masks = {'classification': [], 'regression': []}
+        
+        # Test predictions for final logging
+        self.test_predictions = {'classification': [], 'regression': []}
+        self.test_targets = {'classification': [], 'regression': []}
+        self.test_masks = {'classification': [], 'regression': []}
+        
         logging.info(f"Initialized Table1MolELightningModule with lr={learning_rate}")
     
     def forward(self, batch):
@@ -295,6 +320,22 @@ class Table1MolELightningModule(pl.LightningModule):
         # Get targets and masks from batch
         targets, masks = self._extract_targets_and_masks(batch)
         
+        # Accumulate predictions for periodic training metrics (every 5th epoch)
+        if (self.current_epoch + 1) % 5 == 0:  # Store predictions for 5th, 10th, 15th, ... epochs
+            # Store classification predictions and targets
+            classification_targets, classification_masks = self._process_classification_targets_masks(targets, masks)
+            if classification_targets is not None:
+                self.train_predictions['classification'].append(outputs['classification_output'].detach().cpu())
+                self.train_targets['classification'].append(classification_targets.detach().cpu())
+                self.train_masks['classification'].append(classification_masks.detach().cpu())
+            
+            # Store regression predictions and targets
+            regression_targets, regression_masks = self._process_regression_targets_masks(targets, masks)
+            if regression_targets is not None:
+                self.train_predictions['regression'].append(outputs['regression_output'].detach().cpu())
+                self.train_targets['regression'].append(regression_targets.detach().cpu())
+                self.train_masks['regression'].append(regression_masks.detach().cpu())
+        
         # Compute loss
         device = next(self.parameters()).device
         loss_dict = self.model.compute_loss(
@@ -315,6 +356,130 @@ class Table1MolELightningModule(pl.LightningModule):
         
         return total_loss
     
+    def _process_classification_targets_masks(self, targets, masks):
+        """Process classification targets and masks for storage."""
+        from configs.table1_task_config import get_all_tasks, get_task_type_mapping
+        task_type_mapping = get_task_type_mapping()
+        all_tasks = get_all_tasks()
+        classification_tasks = [task for task in all_tasks if task_type_mapping[task] == 'classification']
+        
+        classification_targets = []
+        classification_masks = []
+        for task in classification_tasks:
+            if task in targets and task in masks:
+                # Convert classification targets to binary format
+                task_targets = targets[task].detach().cpu()
+                task_masks = masks[task].detach().cpu()
+                
+                # Handle -1 values (missing) by setting mask to False
+                valid_targets = (task_targets != -1).float()
+                task_masks = task_masks & valid_targets.bool()
+                
+                # Convert to binary (0/1) for BCE loss
+                binary_targets = (task_targets == 1).float()
+                
+                classification_targets.append(binary_targets)
+                classification_masks.append(task_masks)
+            else:
+                # Add dummy data for missing tasks - we need to infer batch size
+                batch_size = 1  # Will be updated when we know the actual batch size
+                classification_targets.append(torch.zeros(batch_size, device='cpu'))
+                classification_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
+        
+        if classification_targets:
+            # Update batch size for dummy tensors
+            actual_batch_size = classification_targets[0].shape[0] if any(t.numel() > 0 for t in classification_targets) else 1
+            for i, (target, mask) in enumerate(zip(classification_targets, classification_masks)):
+                if target.shape[0] == 1 and actual_batch_size > 1:
+                    classification_targets[i] = torch.zeros(actual_batch_size, device='cpu')
+                    classification_masks[i] = torch.zeros(actual_batch_size, dtype=torch.bool, device='cpu')
+            
+            return torch.stack(classification_targets, dim=1), torch.stack(classification_masks, dim=1)
+        return None, None
+    
+    def _process_regression_targets_masks(self, targets, masks):
+        """Process regression targets and masks for storage."""
+        from configs.table1_task_config import get_all_tasks, get_task_type_mapping
+        task_type_mapping = get_task_type_mapping()
+        all_tasks = get_all_tasks()
+        regression_tasks = [task for task in all_tasks if task_type_mapping[task] == 'regression']
+        
+        regression_targets = []
+        regression_masks = []
+        for task in regression_tasks:
+            if task in targets and task in masks:
+                regression_targets.append(targets[task].detach().cpu())
+                regression_masks.append(masks[task].detach().cpu())
+            else:
+                # Add dummy data for missing tasks
+                batch_size = 1  # Will be updated when we know the actual batch size
+                regression_targets.append(torch.zeros(batch_size, device='cpu'))
+                regression_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
+        
+        if regression_targets:
+            # Update batch size for dummy tensors
+            actual_batch_size = regression_targets[0].shape[0] if any(t.numel() > 0 for t in regression_targets) else 1
+            for i, (target, mask) in enumerate(zip(regression_targets, regression_masks)):
+                if target.shape[0] == 1 and actual_batch_size > 1:
+                    regression_targets[i] = torch.zeros(actual_batch_size, device='cpu')
+                    regression_masks[i] = torch.zeros(actual_batch_size, dtype=torch.bool, device='cpu')
+            
+            return torch.stack(regression_targets, dim=1), torch.stack(regression_masks, dim=1)
+        return None, None
+    
+    def on_train_epoch_end(self):
+        """Compute and log training metrics every 5th epoch."""
+        if (self.current_epoch + 1) % 5 == 0 and (self.train_predictions['classification'] or self.train_predictions['regression']):
+            logging.info(f"Computing training metrics for epoch {self.current_epoch + 1}")
+            
+            # Concatenate predictions if available
+            if self.train_predictions['classification']:
+                classification_preds = torch.cat(self.train_predictions['classification'], dim=0)
+                classification_targets = torch.cat(self.train_targets['classification'], dim=0)
+                classification_masks = torch.cat(self.train_masks['classification'], dim=0)
+            else:
+                # Create dummy tensors
+                classification_preds = torch.zeros(1, 10)
+                classification_targets = torch.zeros(1, 10)
+                classification_masks = torch.zeros(1, 10, dtype=torch.bool)
+            
+            if self.train_predictions['regression']:
+                regression_preds = torch.cat(self.train_predictions['regression'], dim=0)
+                regression_targets = torch.cat(self.train_targets['regression'], dim=0)
+                regression_masks = torch.cat(self.train_masks['regression'], dim=0)
+            else:
+                # Create dummy tensors
+                regression_preds = torch.zeros(1, 8)
+                regression_targets = torch.zeros(1, 8)
+                regression_masks = torch.zeros(1, 8, dtype=torch.bool)
+            
+            # Compute training metrics
+            try:
+                train_metrics = self._compute_epoch_metrics(
+                    classification_preds, classification_targets, classification_masks,
+                    regression_preds, regression_targets, regression_masks
+                )
+                
+                logging.info(f"Computed {len(train_metrics)} training metrics for epoch {self.current_epoch + 1}")
+                
+                # Log training metrics
+                for metric_name, metric_value in train_metrics.items():
+                    self.log(f'train/{metric_name}', metric_value, on_epoch=True)
+                    logging.info(f"Logged training metric: train/{metric_name} = {metric_value:.4f}")
+                    
+            except Exception as e:
+                logging.error(f"Error computing training metrics: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Clear accumulated predictions
+            self.train_predictions['classification'].clear()
+            self.train_predictions['regression'].clear()
+            self.train_targets['classification'].clear()
+            self.train_targets['regression'].clear()
+            self.train_masks['classification'].clear()
+            self.train_masks['regression'].clear()
+    
     def validation_step(self, batch, batch_idx):
         """Validation step."""
         outputs, batch = self.forward(batch)
@@ -334,8 +499,233 @@ class Table1MolELightningModule(pl.LightningModule):
         
         total_loss = loss_dict['total_loss']
         
-        # Compute metrics
-        metrics = self.model.compute_metrics(
+        # Store predictions for epoch-level metric computation
+        self.val_predictions['classification'].append(outputs['classification_output'].detach().cpu())
+        self.val_predictions['regression'].append(outputs['regression_output'].detach().cpu())
+        
+        # Prepare targets and masks for storage
+        from configs.table1_task_config import get_all_tasks, get_task_type_mapping
+        task_type_mapping = get_task_type_mapping()
+        all_tasks = get_all_tasks()
+        
+        # Separate regression and classification tasks
+        regression_tasks = [task for task in all_tasks if task_type_mapping[task] == 'regression']
+        classification_tasks = [task for task in all_tasks if task_type_mapping[task] == 'classification']
+        
+        # Store classification targets and masks
+        classification_targets = []
+        classification_masks = []
+        for task in classification_tasks:
+            if task in targets and task in masks:
+                classification_targets.append(targets[task].detach().cpu())
+                classification_masks.append(masks[task].detach().cpu())
+            else:
+                # Add dummy data for missing tasks
+                batch_size = outputs['classification_output'].shape[0]
+                classification_targets.append(torch.zeros(batch_size, device='cpu'))
+                classification_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
+        
+        if classification_targets:
+            self.val_targets['classification'].append(torch.stack(classification_targets, dim=1))
+            self.val_masks['classification'].append(torch.stack(classification_masks, dim=1))
+        
+        # Store regression targets and masks
+        regression_targets = []
+        regression_masks = []
+        for task in regression_tasks:
+            if task in targets and task in masks:
+                regression_targets.append(targets[task].detach().cpu())
+                regression_masks.append(masks[task].detach().cpu())
+            else:
+                # Add dummy data for missing tasks
+                batch_size = outputs['regression_output'].shape[0]
+                regression_targets.append(torch.zeros(batch_size, device='cpu'))
+                regression_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
+        
+        if regression_targets:
+            self.val_targets['regression'].append(torch.stack(regression_targets, dim=1))
+            self.val_masks['regression'].append(torch.stack(regression_masks, dim=1))
+        
+        # Log basic losses
+        self.log('val/total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        for loss_name, loss_value in loss_dict.items():
+            if loss_name != 'total_loss':
+                self.log(f'val/{loss_name}', loss_value, on_step=True, on_epoch=True)
+        
+        return total_loss
+    
+    def on_validation_epoch_end(self):
+        """Compute epoch-level metrics using accumulated predictions."""
+        logging.info(f"on_validation_epoch_end called - Classification batches: {len(self.val_predictions['classification'])}, Regression batches: {len(self.val_predictions['regression'])}")
+        
+        # Check if we have any predictions at all
+        if not self.val_predictions['classification'] and not self.val_predictions['regression']:
+            logging.warning("No validation predictions accumulated - skipping metrics computation")
+            return
+        
+        # Handle missing classification or regression data
+        if self.val_predictions['classification']:
+            classification_preds = torch.cat(self.val_predictions['classification'], dim=0)
+            classification_targets = torch.cat(self.val_targets['classification'], dim=0)
+            classification_masks = torch.cat(self.val_masks['classification'], dim=0)
+            logging.info(f"Classification predictions shape: {classification_preds.shape}")
+        else:
+            # Create dummy tensors if no classification data
+            batch_size = len(self.val_predictions['regression'][0]) if self.val_predictions['regression'] else 1
+            num_classification_tasks = 10  # From config
+            classification_preds = torch.zeros(batch_size, num_classification_tasks)
+            classification_targets = torch.zeros(batch_size, num_classification_tasks)
+            classification_masks = torch.zeros(batch_size, num_classification_tasks, dtype=torch.bool)
+        
+        if self.val_predictions['regression']:
+            regression_preds = torch.cat(self.val_predictions['regression'], dim=0)
+            regression_targets = torch.cat(self.val_targets['regression'], dim=0)
+            regression_masks = torch.cat(self.val_masks['regression'], dim=0)
+            logging.info(f"Regression predictions shape: {regression_preds.shape}")
+        else:
+            # Create dummy tensors if no regression data
+            batch_size = len(self.val_predictions['classification'][0]) if self.val_predictions['classification'] else 1
+            num_regression_tasks = 8  # From config
+            regression_preds = torch.zeros(batch_size, num_regression_tasks)
+            regression_targets = torch.zeros(batch_size, num_regression_tasks)
+            regression_masks = torch.zeros(batch_size, num_regression_tasks, dtype=torch.bool)
+        
+        # Compute epoch-level metrics
+        try:
+            epoch_metrics = self._compute_epoch_metrics(
+                classification_preds, classification_targets, classification_masks,
+                regression_preds, regression_targets, regression_masks
+            )
+            
+            logging.info(f"Computed {len(epoch_metrics)} epoch-level metrics: {list(epoch_metrics.keys())}")
+            
+            # Log epoch-level metrics
+            for metric_name, metric_value in epoch_metrics.items():
+                self.log(f'val/{metric_name}', metric_value, on_epoch=True)
+                logging.info(f"Logged metric: val/{metric_name} = {metric_value:.4f}")
+                
+        except Exception as e:
+            logging.error(f"Error computing epoch metrics: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Clear accumulated predictions for next epoch
+        self.val_predictions['classification'].clear()
+        self.val_predictions['regression'].clear()
+        self.val_targets['classification'].clear()
+        self.val_targets['regression'].clear()
+        self.val_masks['classification'].clear()
+        self.val_masks['regression'].clear()
+    
+    def _compute_epoch_metrics(self, classification_preds, classification_targets, classification_masks,
+                              regression_preds, regression_targets, regression_masks):
+        """Compute metrics across the entire epoch."""
+        from sklearn.metrics import roc_auc_score, average_precision_score, mean_absolute_error
+        from scipy.stats import spearmanr
+        import numpy as np
+        
+        metrics = {}
+        
+        # Get task configurations
+        from configs.table1_task_config import get_all_tasks, get_task_type_mapping
+        task_type_mapping = get_task_type_mapping()
+        all_tasks = get_all_tasks()
+        
+        regression_tasks = [task for task in all_tasks if task_type_mapping[task] == 'regression']
+        classification_tasks = [task for task in all_tasks if task_type_mapping[task] == 'classification']
+        
+        # Regression metrics
+        for i, task in enumerate(regression_tasks):
+            if i < regression_preds.shape[1]:
+                # Ensure mask matches the batch size of predictions
+                batch_size = min(regression_preds.shape[0], regression_masks.shape[0])
+                mask = regression_masks[:batch_size, i].numpy().astype(bool)
+                if mask.sum() > 0:
+                    pred = regression_preds[:batch_size, i][mask].numpy()
+                    target = regression_targets[:batch_size, i][mask].numpy()
+                    
+                    # Remove NaN values
+                    valid_mask = ~(np.isnan(pred) | np.isnan(target))
+                    if valid_mask.sum() > 0:
+                        pred = pred[valid_mask]
+                        target = target[valid_mask]
+                        
+                        # Compute MAE
+                        metrics[f'{task}_MAE'] = mean_absolute_error(target, pred)
+                        
+                        # Compute Spearman correlation if needed
+                        from configs.table1_task_config import TASK_CONFIG
+                        task_idx = regression_tasks.index(task)
+                        metric_type = TASK_CONFIG['regression']['metrics'][task_idx] if task_idx < len(TASK_CONFIG['regression']['metrics']) else 'MAE'
+                        if 'Spearman' in str(metric_type) and len(pred) > 1:
+                            corr, _ = spearmanr(target, pred)
+                            metrics[f'{task}_Spearman'] = corr if not np.isnan(corr) else 0.0
+        
+        # Classification metrics  
+        for i, task in enumerate(classification_tasks):
+            if i < classification_preds.shape[1]:
+                # Ensure mask matches the batch size of predictions
+                batch_size = min(classification_preds.shape[0], classification_masks.shape[0])
+                mask = classification_masks[:batch_size, i].numpy().astype(bool)
+                if mask.sum() > 0:
+                    pred_logits = classification_preds[:batch_size, i][mask].numpy()
+                    target = classification_targets[:batch_size, i][mask].numpy()
+                    
+                    # Remove NaN values
+                    valid_mask = ~(np.isnan(pred_logits) | np.isnan(target))
+                    if valid_mask.sum() > 0:
+                        pred_logits = pred_logits[valid_mask]
+                        target = target[valid_mask]
+                        
+                        # Convert logits to probabilities
+                        pred_proba = 1 / (1 + np.exp(-pred_logits))
+                        
+                        # Check if we have both classes
+                        if len(np.unique(target)) > 1 and len(pred_proba) > 1:
+                            try:
+                                # Determine metric type
+                                from configs.table1_task_config import TASK_CONFIG
+                                task_idx = classification_tasks.index(task)
+                                metric_type = TASK_CONFIG['classification']['metrics'][task_idx]
+                                
+                                if metric_type == 'AUROC':
+                                    metrics[f'{task}_AUROC'] = roc_auc_score(target, pred_proba)
+                                elif metric_type == 'AUPRC':
+                                    metrics[f'{task}_AUPRC'] = average_precision_score(target, pred_proba)
+                            except (ValueError, IndexError):
+                                # Fallback to 0 if computation fails
+                                if 'AUROC' in task:
+                                    metrics[f'{task}_AUROC'] = 0.0
+                                else:
+                                    metrics[f'{task}_AUPRC'] = 0.0
+        
+        return metrics
+
+    def test_step(self, batch, batch_idx):
+        """Test step."""
+        outputs, batch = self.forward(batch)
+        
+        # Get targets and masks from batch
+        targets, masks = self._extract_targets_and_masks(batch)
+        
+        # Accumulate predictions for test metrics
+        # Store classification predictions and targets
+        classification_targets, classification_masks = self._process_classification_targets_masks(targets, masks)
+        if classification_targets is not None:
+            self.test_predictions['classification'].append(outputs['classification_output'].detach().cpu())
+            self.test_targets['classification'].append(classification_targets.detach().cpu())
+            self.test_masks['classification'].append(classification_masks.detach().cpu())
+        
+        # Store regression predictions and targets
+        regression_targets, regression_masks = self._process_regression_targets_masks(targets, masks)
+        if regression_targets is not None:
+            self.test_predictions['regression'].append(outputs['regression_output'].detach().cpu())
+            self.test_targets['regression'].append(regression_targets.detach().cpu())
+            self.test_masks['regression'].append(regression_masks.detach().cpu())
+        
+        # Compute loss for logging
+        device = next(self.parameters()).device
+        loss_dict = self.model.compute_loss(
             regression_output=outputs['regression_output'],
             classification_output=outputs['classification_output'],
             targets=targets,
@@ -343,20 +733,68 @@ class Table1MolELightningModule(pl.LightningModule):
             device=device
         )
         
+        total_loss = loss_dict['total_loss']
+        
         # Log metrics
         self.log('val/total_loss', total_loss, on_step=True, on_epoch=True, prog_bar=True)
         for loss_name, loss_value in loss_dict.items():
             if loss_name != 'total_loss':
                 self.log(f'val/{loss_name}', loss_value, on_step=True, on_epoch=True)
         
-        for metric_name, metric_value in metrics.items():
-            self.log(f'val/{metric_name}', metric_value, on_step=True, on_epoch=True)
-        
         return total_loss
     
-    def test_step(self, batch, batch_idx):
-        """Test step."""
-        return self.validation_step(batch, batch_idx)
+    def on_test_epoch_end(self):
+        """Compute and log test metrics at the end of testing."""
+        if self.test_predictions['classification'] or self.test_predictions['regression']:
+            logging.info(f"Computing test metrics")
+            
+            # Concatenate predictions if available
+            if self.test_predictions['classification']:
+                classification_preds = torch.cat(self.test_predictions['classification'], dim=0)
+                classification_targets = torch.cat(self.test_targets['classification'], dim=0)
+                classification_masks = torch.cat(self.test_masks['classification'], dim=0)
+            else:
+                # Create dummy tensors
+                classification_preds = torch.zeros(1, 10)
+                classification_targets = torch.zeros(1, 10)
+                classification_masks = torch.zeros(1, 10, dtype=torch.bool)
+            
+            if self.test_predictions['regression']:
+                regression_preds = torch.cat(self.test_predictions['regression'], dim=0)
+                regression_targets = torch.cat(self.test_targets['regression'], dim=0)
+                regression_masks = torch.cat(self.test_masks['regression'], dim=0)
+            else:
+                # Create dummy tensors
+                regression_preds = torch.zeros(1, 8)
+                regression_targets = torch.zeros(1, 8)
+                regression_masks = torch.zeros(1, 8, dtype=torch.bool)
+            
+            # Compute test metrics
+            try:
+                test_metrics = self._compute_epoch_metrics(
+                    classification_preds, classification_targets, classification_masks,
+                    regression_preds, regression_targets, regression_masks
+                )
+                
+                logging.info(f"Computed {len(test_metrics)} test metrics")
+                
+                # Log test metrics
+                for metric_name, metric_value in test_metrics.items():
+                    self.log(f'test/{metric_name}', metric_value, on_epoch=True)
+                    logging.info(f"Logged test metric: test/{metric_name} = {metric_value:.4f}")
+                    
+            except Exception as e:
+                logging.error(f"Error computing test metrics: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Clear accumulated predictions
+            self.test_predictions['classification'].clear()
+            self.test_predictions['regression'].clear()
+            self.test_targets['classification'].clear()
+            self.test_targets['regression'].clear()
+            self.test_masks['classification'].clear()
+            self.test_masks['regression'].clear()
     
     def _extract_targets_and_masks(self, batch):
         """Extract targets and masks from PyTorch Geometric batch."""
@@ -392,12 +830,18 @@ class Table1MolELightningModule(pl.LightningModule):
         
         # Scheduler with warmup
         total_steps = self.trainer.estimated_stepping_batches
-        warmup_pct = min(self.warmup_steps / total_steps, 1.0)  # Cap at 1.0
+        
+        # Ensure warmup_pct is reasonable to avoid division by zero
+        if total_steps > 0:
+            warmup_pct = min(self.warmup_steps / total_steps, 0.3)  # Cap at 30%
+            warmup_pct = max(warmup_pct, 0.01)  # Minimum 1%
+        else:
+            warmup_pct = 0.1  # Default 10%
         
         scheduler = optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=self.learning_rate,
-            total_steps=total_steps,
+            total_steps=max(total_steps, 1),  # Ensure at least 1 step
             pct_start=warmup_pct,
             anneal_strategy='cos'
         )
@@ -453,7 +897,9 @@ def main():
         deberta_config=model_config,
         dropout=args.dropout,
         freeze_encoder=args.freeze_encoder,
-        pretrained_path=args.pretrained_path
+        pretrained_path=args.pretrained_path,
+        regression_loss_weight=args.regression_loss_weight,
+        classification_loss_weight=args.classification_loss_weight
     )
     
     # Create Lightning module

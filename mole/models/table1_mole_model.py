@@ -35,6 +35,8 @@ class Table1MolEModel(nn.Module):
         dropout: float = 0.1,
         freeze_encoder: bool = False,
         pretrained_path: Optional[str] = None,
+        regression_loss_weight: float = 0.004,
+        classification_loss_weight: float = 1.0,
         **kwargs
     ):
         """
@@ -45,6 +47,8 @@ class Table1MolEModel(nn.Module):
             dropout: Dropout probability for prediction heads
             freeze_encoder: Whether to freeze the MolE encoder weights
             pretrained_path: Path to pretrained MolE weights
+            regression_loss_weight: Weight for regression loss (default: 0.004)
+            classification_loss_weight: Weight for classification loss (default: 1.0)
             **kwargs: Additional arguments
         """
         super().__init__()
@@ -61,10 +65,12 @@ class Table1MolEModel(nn.Module):
         # Get encoder output dimension
         self.hidden_dim = deberta_config.get('hidden_size', 768)
         
-        # Initialize Table 1 prediction heads
+        # Initialize Table 1 prediction heads with loss weights
         self.prediction_heads = Table1PredictionHeads(
             hidden_dim=self.hidden_dim,
-            dropout=dropout
+            dropout=dropout,
+            regression_loss_weight=regression_loss_weight,
+            classification_loss_weight=classification_loss_weight
         )
         
         # Freeze encoder if requested
@@ -368,6 +374,8 @@ def create_table1_mole_model(
     dropout: float = 0.1,
     freeze_encoder: bool = False,
     pretrained_path: Optional[str] = None,
+    regression_loss_weight: float = 0.004,
+    classification_loss_weight: float = 1.0,
     **kwargs
 ) -> Table1MolEModel:
     """
@@ -378,6 +386,8 @@ def create_table1_mole_model(
         dropout: Dropout probability for prediction heads
         freeze_encoder: Whether to freeze the MolE encoder weights
         pretrained_path: Path to pretrained MolE weights
+        regression_loss_weight: Weight for regression loss (default: 0.004)
+        classification_loss_weight: Weight for classification loss (default: 1.0)
         **kwargs: Additional arguments
         
     Returns:
@@ -409,6 +419,8 @@ def create_table1_mole_model(
         dropout=dropout,
         freeze_encoder=freeze_encoder,
         pretrained_path=pretrained_path,
+        regression_loss_weight=regression_loss_weight,
+        classification_loss_weight=classification_loss_weight,
         **kwargs
     )
 
