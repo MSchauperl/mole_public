@@ -1,0 +1,49 @@
+/* Custom CSS for MolE documentation */
+
+/* Improve code block styling */
+.highlight {
+    background-color: #f8f8f8;
+    border: 1px solid #e1e4e5;
+    border-radius: 4px;
+    margin: 1em 0;
+}
+
+/* Better table styling */
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal;
+}
+
+/* Improve admonition styling */
+.admonition {
+    margin: 1em 0;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.admonition.note {
+    background-color: #e7f2fa;
+    border-left: 3px solid #2980b9;
+}
+
+.admonition.warning {
+    background-color: #ffedcc;
+    border-left: 3px solid #f39c12;
+}
+
+/* Better navigation */
+.wy-nav-content-wrap {
+    margin-left: 300px;
+}
+
+/* Improve inline code */
+code {
+    background-color: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 90%;
+}
+
+/* Better spacing for sections */
+.section {
+    margin-bottom: 2em;
+} 

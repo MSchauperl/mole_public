@@ -1,0 +1,683 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mole.nn package &mdash; MolE 1.0.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/custom.css?v=025f69fd" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8d563738"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mole.nn.attention module" href="mole.nn.attention.html" />
+    <link rel="prev" title="mole.models.table1_mole_model module" href="mole.models.table1_mole_model.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            MolE
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#mole-molecular-embeddings">MolE - Molecular Embeddings</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#about-the-project">About The Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#getting-started">Getting started</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#installation">Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#download-pretrained-models">Download pretrained models</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#usage">Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#how-to-train-a-model">How to train a model?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#fine-tune-mole">Fine tune MolE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#how-to-predict-properties-of-new-molecules">How to predict properties of new molecules?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#how-to-compute-embeddings-for-molecules">How to compute embeddings for molecules?</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#license">License</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#project-summaries">Project Summaries</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#unsupervised-pretraining">Unsupervised Pretraining</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#mole-unsupervised-pretraining-data-generation-summary">MolE Unsupervised Pretraining: Data Generation Summary</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="overview.html#data-pipeline">Data Pipeline</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="overview.html#mole-data-pipeline-comprehensive-analysis">📊 <strong>MolE Data Pipeline - Comprehensive Analysis</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#basic-installation">Basic Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#requirements">Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#quick-install">Quick Install</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#new-machine-setup">New Machine Setup</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#mole-new-machine-setup-checklist">MolE New Machine Setup Checklist</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#pre-setup-requirements">📋 Pre-Setup Requirements</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#quick-setup-automated">🚀 Quick Setup (Automated)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#files-to-transfer">📁 Files to Transfer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#verification-steps">✅ Verification Steps</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#gpu-memory-configuration">🔧 GPU Memory Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#common-issues-solutions">🐛 Common Issues &amp; Solutions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#expected-performance">📊 Expected Performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#success-criteria">🎯 Success Criteria</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#support">📞 Support</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#final-verification">🎉 Final Verification</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#detailed-setup-guide">Detailed Setup Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#mole-environment-setup-guide-for-new-machine">MolE Environment Setup Guide for New Machine</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-1-clone-the-repository">Step 1: Clone the Repository</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-2-create-conda-environment">Step 2: Create Conda Environment</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-3-install-mole-package">Step 3: Install MolE Package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-4-download-guacamol-dataset">Step 4: Download GuacaMol Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-5-create-download-vocabularies">Step 5: Create/Download Vocabularies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-6-test-installation">Step 6: Test Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#step-7-start-training">Step 7: Start Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#gpu-memory-optimization">GPU Memory Optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#expected-training-performance">Expected Training Performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#monitoring-training">Monitoring Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#files-you-need-to-transfer">Files You Need to Transfer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="installation.html#quick-start-script">Quick Start Script</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#environment-configuration">Environment Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#mac-users">Mac Users</a></li>
+<li class="toctree-l3"><a class="reference internal" href="installation.html#gpu-setup">GPU Setup</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#training-a-model">Training a Model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="quickstart.html#fine-tuning-mole">Fine-tuning MolE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quickstart.html#data-format">Data Format</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#making-predictions">Making Predictions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="quickstart.html#python-api">Python API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="quickstart.html#command-line">Command Line</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#computing-embeddings">Computing Embeddings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="user_guide.html">User Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#cross-environment-masked-language-modeling">Cross-Environment Masked Language Modeling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#cross-environment-mlm-for-mole-implementation-guide">Cross-Environment MLM for MolE: Implementation Guide</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#overview">🎯 <strong>Overview</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#implementation-structure">📁 <strong>Implementation Structure</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#quick-start">🚀 <strong>Quick Start</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#model-architecture">📊 <strong>Model Architecture</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#configuration-options">🔧 <strong>Configuration Options</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#metrics-and-evaluation">📈 <strong>Metrics and Evaluation</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#advanced-usage">🛠 <strong>Advanced Usage</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#api-reference">📚 <strong>API Reference</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#troubleshooting">🔍 <strong>Troubleshooting</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#examples">📖 <strong>Examples</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#research-applications">🔬 <strong>Research Applications</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#citation">📄 <strong>Citation</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#contributing">🤝 <strong>Contributing</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#support">📞 <strong>Support</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="user_guide.html#documentation-plan-roadmap">Documentation Plan &amp; Roadmap</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="user_guide.html#mole-project-comprehensive-documentation-plan">📋 <strong>MolE Project - Comprehensive Documentation Plan</strong></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-1-high-level-architecture-analysis"><strong>Phase 1: High-Level Architecture Analysis</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-2-data-pipeline-analysis-complete"><strong>Phase 2: Data Pipeline Analysis</strong> ✅ <strong>COMPLETE</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-3-model-architecture-deep-dive"><strong>Phase 3: Model Architecture Deep Dive</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-4-training-workflows-pretraining-fine-tuning"><strong>Phase 4: Training Workflows (Pretraining + Fine-tuning)</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-5-inference-and-applications"><strong>Phase 5: Inference and Applications</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-6-implementation-details"><strong>Phase 6: Implementation Details</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-7-documentation-creation"><strong>Phase 7: Documentation Creation</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#phase-8-analysis-tools-and-methods"><strong>Phase 8: Analysis Tools and Methods</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#deliverables-checklist"><strong>Deliverables Checklist</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#progress-tracking"><strong>Progress Tracking</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#execution-timeline-milestones"><strong>Execution Timeline &amp; Milestones</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#success-criteria"><strong>Success Criteria</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="user_guide.html#notes-references"><strong>Notes &amp; References</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Technical Documentation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#model-architecture-review">Model Architecture Review</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#mole-model-architecture-comprehensive-review">MolE Model Architecture: Comprehensive Review</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#executive-summary">Executive Summary</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#model-architecture-overview">Model Architecture Overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#core-components-analysis">Core Components Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#data-flow-architecture">Data Flow Architecture</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#key-architectural-innovations">Key Architectural Innovations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#training-and-optimization-strategy">Training and Optimization Strategy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#model-scalability-and-flexibility">Model Scalability and Flexibility</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#performance-characteristics">Performance Characteristics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#integration-with-molecular-data-pipeline">Integration with Molecular Data Pipeline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#conclusion">Conclusion</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#disentangled-attention-mechanism">Disentangled Attention Mechanism</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="architecture.html#disentangled-self-attention-summary">Disentangled Self-Attention: Summary</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#what-is-disentangled-self-attention">What is Disentangled Self-Attention?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#key-components">Key Components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#how-relative-position-embeddings-work-in-detail">How Relative Position Embeddings Work in Detail</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#why-use-disentangled-attention">Why Use Disentangled Attention?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#high-level-workflow">High-Level Workflow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="architecture.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="data_pipeline.html">Data Pipeline</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="data_pipeline.html#complete-data-pipeline-analysis">Complete Data Pipeline Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="data_pipeline.html#mole-data-pipeline-comprehensive-analysis">📊 <strong>MolE Data Pipeline - Comprehensive Analysis</strong></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#executive-summary"><strong>Executive Summary</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#core-data-processing-pipeline"><strong>1. Core Data Processing Pipeline</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#molecular-tokenization-system"><strong>2. Molecular Tokenization System</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#geometric-feature-extraction"><strong>3. Geometric Feature Extraction</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#dataset-classes-and-data-loading"><strong>4. Dataset Classes and Data Loading</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#batch-processing-and-collation"><strong>5. Batch Processing and Collation</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#data-preprocessing-for-different-training-stages"><strong>6. Data Preprocessing for Different Training Stages</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#key-strengths-of-the-data-pipeline"><strong>7. Key Strengths of the Data Pipeline</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#technical-implementation-details"><strong>8. Technical Implementation Details</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#comparison-with-alternative-approaches"><strong>9. Comparison with Alternative Approaches</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#areas-for-future-enhancement"><strong>10. Areas for Future Enhancement</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#code-organization-summary"><strong>11. Code Organization Summary</strong></a></li>
+<li class="toctree-l4"><a class="reference internal" href="data_pipeline.html#usage-examples-and-patterns"><strong>12. Usage Examples and Patterns</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="training.html">Training</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="training.html#training-overview">Training Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="training.html#fine-tuning-guide">Fine-tuning Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="training.html#basic-fine-tuning">Basic Fine-tuning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="training.html#parameters">Parameters</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="training.html#required-parameters">Required Parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="training.html#optional-parameters">Optional Parameters</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="training.html#configuration-management">Configuration Management</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="training.html#viewing-configuration">Viewing Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="training.html#custom-configuration">Custom Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="training.html#training-examples">Training Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="training.html#regression-task">Regression Task</a></li>
+<li class="toctree-l3"><a class="reference internal" href="training.html#classification-task">Classification Task</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="training.html#advanced-training">Advanced Training</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="training.html#multi-task-learning">Multi-task Learning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="training.html#custom-learning-schedules">Custom Learning Schedules</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="training.html#monitoring-training">Monitoring Training</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="pretraining.html">Pretraining</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pretraining.html#unsupervised-pretraining-summary">Unsupervised Pretraining Summary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pretraining.html#mole-unsupervised-pretraining-data-generation-summary">MolE Unsupervised Pretraining: Data Generation Summary</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="pretraining.html#overview">Overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pretraining.html#data-generation-pipeline">Data Generation Pipeline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pretraining.html#key-points">Key Points</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pretraining.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics &amp; Evaluation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html#metrics-summary">Metrics Summary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="metrics.html#table-1-mole-training-metrics-summary">Table 1 MolE Training Metrics Summary</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#training-overview">Training Overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#final-loss-values">Final Loss Values</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#dataset-composition-by-task">Dataset Composition by Task</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#expected-metrics-by-dataset-split">Expected Metrics by Dataset Split</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#technical-issues-resolved">Technical Issues Resolved</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#performance-interpretation">Performance Interpretation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#notes">Notes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#next-steps-for-full-evaluation">Next Steps for Full Evaluation</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="metrics.html#per-task-metrics-implementation">Per-Task Metrics Implementation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="metrics.html#per-task-metrics-implementation-summary">Per-Task Metrics Implementation Summary</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="metrics.html#completed-full-per-task-metrics-logging">✅ <strong>COMPLETED: Full Per-Task Metrics Logging</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Developer Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="developer_guide.html">Developer Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="developer_guide.html#refactoring-plan">Refactoring Plan</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="developer_guide.html#mole-code-refactoring-plan-removing-hydra">MolE Code Refactoring Plan (Removing Hydra)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="developer_guide.html#model-architecture-details">Model Architecture Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="developer_guide.html#mole-model-architecture-comprehensive-review">MolE Model Architecture: Comprehensive Review</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#executive-summary">Executive Summary</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#model-architecture-overview">Model Architecture Overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#core-components-analysis">Core Components Analysis</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#data-flow-architecture">Data Flow Architecture</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#key-architectural-innovations">Key Architectural Innovations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#training-and-optimization-strategy">Training and Optimization Strategy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#model-scalability-and-flexibility">Model Scalability and Flexibility</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#performance-characteristics">Performance Characteristics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#integration-with-molecular-data-pipeline">Integration with Molecular Data Pipeline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#conclusion">Conclusion</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="developer_guide.html#attention-mechanism-implementation">Attention Mechanism Implementation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="developer_guide.html#disentangled-self-attention-summary">Disentangled Self-Attention: Summary</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#what-is-disentangled-self-attention">What is Disentangled Self-Attention?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#key-components">Key Components</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#how-relative-position-embeddings-work-in-detail">How Relative Position Embeddings Work in Detail</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#why-use-disentangled-attention">Why Use Disentangled Attention?</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#high-level-workflow">High-Level Workflow</a></li>
+<li class="toctree-l4"><a class="reference internal" href="developer_guide.html#references">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="refactoring.html">Refactoring Plan</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="refactoring.html#mole-code-refactoring-plan-removing-hydra">MolE Code Refactoring Plan (Removing Hydra)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="security.html">Security &amp; Compliance</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="security.html#security-guide-handling-credentials-safely">Security Guide: Handling Credentials Safely</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="security.html#issue-resolved">✅ Issue Resolved</a></li>
+<li class="toctree-l3"><a class="reference internal" href="security.html#updated-gitignore">🔒 Updated .gitignore</a></li>
+<li class="toctree-l3"><a class="reference internal" href="security.html#best-practices-for-future-development">🛡️ Best Practices for Future Development</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="security.html#environment-variables">1. Environment Variables</a></li>
+<li class="toctree-l4"><a class="reference internal" href="security.html#credential-management">2. Credential Management</a></li>
+<li class="toctree-l4"><a class="reference internal" href="security.html#pre-commit-checks">3. Pre-commit Checks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="security.html#if-you-accidentally-commit-secrets-again">4. If You Accidentally Commit Secrets Again</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="security.html#current-status">🔄 Current Status</a></li>
+<li class="toctree-l3"><a class="reference internal" href="security.html#next-steps">📝 Next Steps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="security.html#emergency-contact">🚨 Emergency Contact</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="requirements.html">Requirements &amp; Setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="requirements.html#machine-setup-checklist">Machine Setup Checklist</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="requirements.html#mole-new-machine-setup-checklist">MolE New Machine Setup Checklist</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#pre-setup-requirements">📋 Pre-Setup Requirements</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#quick-setup-automated">🚀 Quick Setup (Automated)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#files-to-transfer">📁 Files to Transfer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#verification-steps">✅ Verification Steps</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#gpu-memory-configuration">🔧 GPU Memory Configuration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#common-issues-solutions">🐛 Common Issues &amp; Solutions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#expected-performance">📊 Expected Performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#success-criteria">🎯 Success Criteria</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#support">📞 Support</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#final-verification">🎉 Final Verification</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="requirements.html#detailed-setup-guide">Detailed Setup Guide</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="requirements.html#mole-environment-setup-guide-for-new-machine">MolE Environment Setup Guide for New Machine</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-1-clone-the-repository">Step 1: Clone the Repository</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-2-create-conda-environment">Step 2: Create Conda Environment</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-3-install-mole-package">Step 3: Install MolE Package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-4-download-guacamol-dataset">Step 4: Download GuacaMol Dataset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-5-create-download-vocabularies">Step 5: Create/Download Vocabularies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-6-test-installation">Step 6: Test Installation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#step-7-start-training">Step 7: Start Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#gpu-memory-optimization">GPU Memory Optimization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#expected-training-performance">Expected Training Performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#monitoring-training">Monitoring Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#files-you-need-to-transfer">Files You Need to Transfer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#quick-start-script">Quick Start Script</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="requirements.html#atlas-generation">Atlas Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="requirements.html#atom-environment-visual-atlas-generator">Atom Environment Visual Atlas Generator</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#features">Features</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#requirements">Requirements</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#usage">Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#output-format">Output Format</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#algorithm-overview">Algorithm Overview</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#file-structure">File Structure</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#example-output">Example Output</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#performance-notes">Performance Notes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#customization">Customization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="requirements.html#contributing">Contributing</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mole.metrics.MetricsDict"><code class="docutils literal notranslate"><span class="pre">MetricsDict</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.MetricsDict.compute"><code class="docutils literal notranslate"><span class="pre">MetricsDict.compute()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.MetricsDict.reset"><code class="docutils literal notranslate"><span class="pre">MetricsDict.reset()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mole.metrics.BinaryBalancedAccuracy"><code class="docutils literal notranslate"><span class="pre">BinaryBalancedAccuracy</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.BinaryBalancedAccuracy.is_differentiable"><code class="docutils literal notranslate"><span class="pre">BinaryBalancedAccuracy.is_differentiable</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.BinaryBalancedAccuracy.higher_is_better"><code class="docutils literal notranslate"><span class="pre">BinaryBalancedAccuracy.higher_is_better</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.BinaryBalancedAccuracy.full_state_update"><code class="docutils literal notranslate"><span class="pre">BinaryBalancedAccuracy.full_state_update</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html#mole.metrics.BinaryBalancedAccuracy.compute"><code class="docutils literal notranslate"><span class="pre">BinaryBalancedAccuracy.compute()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mole.metrics.get_regression_metrics"><code class="docutils literal notranslate"><span class="pre">get_regression_metrics()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mole.metrics.get_mlm_metrics"><code class="docutils literal notranslate"><span class="pre">get_mlm_metrics()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#mole.metrics.get_classification_metrics"><code class="docutils literal notranslate"><span class="pre">get_classification_metrics()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">mole</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="mole.html">mole package</a><ul class="current">
+<li class="toctree-l3 current"><a class="reference internal" href="mole.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="mole.cli.html">mole.cli package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.data.html">mole.data package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.engine.html">mole.engine package</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.models.html">mole.models package</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">mole.nn package</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mole.html#submodules">Submodules</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mole.config.html">mole.config module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.dataset_loader.html">mole.dataset_loader module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.inference.html">mole.inference module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.metrics.html">mole.metrics module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.table1_prediction_heads.html">mole.table1_prediction_heads module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="mole.utils.html">mole.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mole.html#module-mole">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="atlas.html">Atom Environment Atlas</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="atlas.html#atom-environment-visual-atlas-generator">Atom Environment Visual Atlas Generator</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#features">Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#requirements">Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#usage">Usage</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#basic-usage">Basic Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#advanced-usage">Advanced Usage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#command-line-options">Command Line Options</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#testing">Testing</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#output-format">Output Format</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#algorithm-overview">Algorithm Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#file-structure">File Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#example-output">Example Output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#performance-notes">Performance Notes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#common-issues">Common Issues</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#debug-tips">Debug Tips</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#customization">Customization</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#different-vocabularies">Different Vocabularies</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#custom-grid-layout">Custom Grid Layout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="atlas.html#highlighting-colors">Highlighting Colors</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="atlas.html#contributing">Contributing</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="checklist.html">New Machine Checklist</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="checklist.html#mole-new-machine-setup-checklist">MolE New Machine Setup Checklist</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#pre-setup-requirements">📋 Pre-Setup Requirements</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#hardware-requirements">Hardware Requirements</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#software-requirements">Software Requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#quick-setup-automated">🚀 Quick Setup (Automated)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#option-1-use-setup-script">Option 1: Use Setup Script</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#option-2-manual-setup">Option 2: Manual Setup</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#files-to-transfer">📁 Files to Transfer</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#essential-files-must-have">Essential Files (Must Have)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#optional-files-can-regenerate">Optional Files (Can Regenerate)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#verification-steps">✅ Verification Steps</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#environment-test">Environment Test</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#dataset-test">Dataset Test</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#training-test">Training Test</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#gpu-memory-configuration">🔧 GPU Memory Configuration</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#for-rtx-3070-8gb-current-settings">For RTX 3070 (8GB) - Current Settings</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#for-rtx-4090-24gb-larger-model">For RTX 4090 (24GB) - Larger Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#for-rtx-3060-12gb-medium-model">For RTX 3060 (12GB) - Medium Model</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#common-issues-solutions">🐛 Common Issues &amp; Solutions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#cuda-out-of-memory">CUDA Out of Memory</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#environment-issues">Environment Issues</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#import-errors">Import Errors</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#setup-script-issues">Setup Script Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#expected-performance">📊 Expected Performance</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#memory-usage-rtx-3070">Memory Usage (RTX 3070)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="checklist.html#training-time-estimates">Training Time Estimates</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#success-criteria">🎯 Success Criteria</a></li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#support">📞 Support</a></li>
+<li class="toctree-l3"><a class="reference internal" href="checklist.html#final-verification">🎉 Final Verification</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#installation-issues">Installation Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#cuda-not-available">CUDA Not Available</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#rdkit-import-errors">RDKit Import Errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#mac-m1-issues">Mac M1 Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#memory-issues">Memory Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#out-of-memory-during-training">Out of Memory During Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#out-of-memory-during-inference">Out of Memory During Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#data-issues">Data Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#smiles-parsing-errors">SMILES Parsing Errors</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#vocabulary-mismatch">Vocabulary Mismatch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#training-issues">Training Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#loss-not-decreasing">Loss Not Decreasing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#nan-values-in-loss">NaN Values in Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#model-not-loading">Model Not Loading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#performance-issues">Performance Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#slow-training">Slow Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="troubleshooting.html#slow-inference">Slow Inference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html#getting-help">Getting Help</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">MolE</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">mole</a></li>
+          <li class="breadcrumb-item"><a href="mole.html">mole package</a></li>
+      <li class="breadcrumb-item active">mole.nn package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/mole.nn.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="mole-nn-package">
+<h1>mole.nn package<a class="headerlink" href="#mole-nn-package" title="Link to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mole.nn.attention.html">mole.nn.attention module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mole.nn.attention.html#mole.nn.attention.DisentangledSelfAttention"><code class="docutils literal notranslate"><span class="pre">DisentangledSelfAttention</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.attention.html#mole.nn.attention.DisentangledSelfAttention.transpose_for_scores"><code class="docutils literal notranslate"><span class="pre">DisentangledSelfAttention.transpose_for_scores()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.attention.html#mole.nn.attention.DisentangledSelfAttention.forward"><code class="docutils literal notranslate"><span class="pre">DisentangledSelfAttention.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.attention.html#mole.nn.attention.DisentangledSelfAttention.disentangled_attention_bias"><code class="docutils literal notranslate"><span class="pre">DisentangledSelfAttention.disentangled_attention_bias()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mole.nn.layers.html">mole.nn.layers module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm"><code class="docutils literal notranslate"><span class="pre">LayerNorm</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.weight"><code class="docutils literal notranslate"><span class="pre">LayerNorm.weight</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.bias"><code class="docutils literal notranslate"><span class="pre">LayerNorm.bias</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.normalized_shape"><code class="docutils literal notranslate"><span class="pre">LayerNorm.normalized_shape</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.eps"><code class="docutils literal notranslate"><span class="pre">LayerNorm.eps</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.elementwise_affine"><code class="docutils literal notranslate"><span class="pre">LayerNorm.elementwise_affine</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.reset_parameters"><code class="docutils literal notranslate"><span class="pre">LayerNorm.reset_parameters()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.forward"><code class="docutils literal notranslate"><span class="pre">LayerNorm.forward()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mole.nn.layers.html#mole.nn.layers.LayerNorm.extra_repr"><code class="docutils literal notranslate"><span class="pre">LayerNorm.extra_repr()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mole.nn.utils.html">mole.nn.utils module</a></li>
+</ul>
+</div>
+</section>
+<section id="module-mole.nn">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-mole.nn" title="Link to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="mole.models.table1_mole_model.html" class="btn btn-neutral float-left" title="mole.models.table1_mole_model module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mole.nn.attention.html" class="btn btn-neutral float-right" title="mole.nn.attention module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, MolE Team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
