@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Overview &mdash; MolE 1.0.0 documentation</title>
+  <title>Overview &mdash; MolE Enhanced 1.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="_static/custom.css?v=025f69fd" />
@@ -33,7 +33,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            MolE
+            MolE Enhanced
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -46,23 +46,7 @@
               <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#mole-molecular-embeddings">MolE - Molecular Embeddings</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#about-the-project">About The Project</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#getting-started">Getting started</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#installation">Installation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#download-pretrained-models">Download pretrained models</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#usage">Usage</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#how-to-train-a-model">How to train a model?</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#fine-tune-mole">Fine tune MolE</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#how-to-predict-properties-of-new-molecules">How to predict properties of new molecules?</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#how-to-compute-embeddings-for-molecules">How to compute embeddings for molecules?</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#license">License</a></li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#hotspot-therapeutics-mole-enhancement">HotSpot Therapeutics MolE Enhancement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#project-summaries">Project Summaries</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#unsupervised-pretraining">Unsupervised Pretraining</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mole-unsupervised-pretraining-data-generation-summary">MolE Unsupervised Pretraining: Data Generation Summary</a></li>
@@ -589,7 +573,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">MolE</a>
+          <a href="index.html">MolE Enhanced</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -609,183 +593,24 @@
              
   <section id="overview">
 <span id="id1"></span><h1>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h1>
-<section class="tex2jax_ignore mathjax_ignore" id="mole-molecular-embeddings">
-<h2>MolE - Molecular Embeddings<a class="headerlink" href="#mole-molecular-embeddings" title="Link to this heading"></a></h2>
-<!-- TABLE OF CONTENTS -->
-<details open="open">
-  <summary>Table of Contents</summary>
-  <ol>
-    <li><a href="#about-the-project">About The Project</a></li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#installation">Installation</a></li>
-        <li><a href="#download-pretrained-models">Download pretrained models</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#usage">Usage</a>
-      <ul>
-        <li><a href="#how-to-train-a-model">How to train a model?</a></li>
-        <li><a href="#how-to-predict-properties-of-new-molecules">How to predict properties of new molecules?</a></li>
-        <li><a href="#how-to-compute-embeddings-for-molecules">How to compute embeddings for molecules?</a></li>
-      </ul>
-    </li>
-    <li><a href="#license">License</a></li>
-  </ol>
-</details>
-<!-- ABOUT THE PROJECT -->
-<section id="about-the-project">
-<h3>About The Project<a class="headerlink" href="#about-the-project" title="Link to this heading"></a></h3>
-<p>MolE is Recursion’s foundation model for chemistry wihch combines geometric deep learning with
-transformers, an architecture commonly used to train Large Language Models (LLMs), to learn a meaningful
-representation of molecules. MolE was designed to mitigate the challenge of accurately predicting
-chemical properties from small public or private datasets. MolE leverages extensive labeled and unlabeled
-datasets in two pretraining steps. First it follows a novel self-supervised strategy using the graph
-representation of ~842 million molecules designed to properly learn to represent chemical structures.
-It is followed by a massive multi-task training to assimilate biological information.</p>
-<p><img alt="plot" src="docs/MolE_fig.png" /></p>
-<!-- GETTING STARTED -->
-</section>
-<section id="getting-started">
-<h3>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h3>
-<section id="installation">
-<h4>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h4>
-<p>If you want to install MolE in your local environment follow these steps:</p>
-<p>First, create and activate your virtual environment:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># create a new virtual environment using pyenv</span>
-pyenv<span class="w"> </span>virtualenv<span class="w"> </span>mole
-
-<span class="c1"># activate the environment</span>
-pyenv<span class="w"> </span>activate<span class="w"> </span>mole
-</pre></div>
-</div>
-<p>Next, clone this repo and move into it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/recursionpharma/mole_public.git
-<span class="nb">cd</span><span class="w"> </span>mole_public
-</pre></div>
-</div>
-<p>Proceed to install project dependencies, this should take less than 30 mins in a normal CPU:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For Mac or CPU only:</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements/main_&lt;PYTHON_VERSION&gt;.txt
-
-<span class="c1"># For CUDA:</span>
-pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements/main_&lt;PYTHON_VERSION&gt;_gpu.txt
-</pre></div>
-</div>
-<p>where <code class="docutils literal notranslate"><span class="pre">&lt;PYTHON_VERSION&gt;</span></code> could be <code class="docutils literal notranslate"><span class="pre">3.9</span></code> or <code class="docutils literal notranslate"><span class="pre">3.10</span></code></p>
-<p>Finally, install <code class="docutils literal notranslate"><span class="pre">mole</span></code> which should take few minutes:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
-</pre></div>
-</div>
-<p><strong>NOTE</strong>: If you are a mac user consider to use <code class="docutils literal notranslate"><span class="pre">PYTORCH_ENABLE_MPS_FALLBACK=1</span></code> as environmental variable to avoid issues between <code class="docutils literal notranslate"><span class="pre">torch</span></code> and M1 processors. You can do it by typing:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;export PYTORCH_ENABLE_MPS_FALLBACK=1&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.bashrc
-</pre></div>
-</div>
-</section>
-<section id="download-pretrained-models">
-<h4>Download pretrained models<a class="headerlink" href="#download-pretrained-models" title="Link to this heading"></a></h4>
-<p>TODO</p>
-<!-- Usage -->
-</section>
-</section>
-<section id="usage">
-<h3>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h3>
-<section id="how-to-train-a-model">
-<h4>How to train a model?<a class="headerlink" href="#how-to-train-a-model" title="Link to this heading"></a></h4>
-<p>Models can be easily trained usign <code class="docutils literal notranslate"><span class="pre">mole_train</span></code> from the command line. <code class="docutils literal notranslate"><span class="pre">mole_train</span></code> is powered by <a class="reference external" href="https://hydra.cc/docs/intro/">hydra</a> which allows to create a  configuration file and start the job .</p>
-<p>You can always see the complete configuration file begore launching the job by adding <code class="docutils literal notranslate"><span class="pre">--cfg</span> <span class="pre">job</span> <span class="pre">--resolve</span></code> at the end of the command. This will print the configuration file.</p>
-</section>
-<section id="fine-tune-mole">
-<h4>Fine tune MolE<a class="headerlink" href="#fine-tune-mole" title="Link to this heading"></a></h4>
-<p>If you need to fine tune MolE using a smaller dataset (e.g. to predict activity in an internal project) you can do it  using <code class="docutils literal notranslate"><span class="pre">mole_train</span> <span class="pre">model=finetune</span></code> where you need to specify:</p>
+<section id="hotspot-therapeutics-mole-enhancement">
+<h2>HotSpot Therapeutics MolE Enhancement<a class="headerlink" href="#hotspot-therapeutics-mole-enhancement" title="Link to this heading"></a></h2>
+<p>This project represents <strong>HotSpot Therapeutics’ enhanced implementation</strong> of molecular embeddings,
+building upon and extending the original MolE foundation model architecture. Our development
+focuses on advancing molecular property prediction and drug discovery applications through
+improved model architectures and training methodologies.</p>
+<p><strong>Key Enhancements:</strong></p>
 <ul class="simple">
-<li><p><em>data_file</em> [string] - this is the path to the file containing the training set in your local computer.</p></li>
-<li><p><em>checkpoint_path</em> [string] - this is the path to the file containing the pretrained model. If <code class="docutils literal notranslate"><span class="pre">null</span></code>, training will start from a randomly initialized model</p></li>
-<li><p><em>dropout</em> [float] - specifies the dropout used in the prediction head. This should be a value between 0 and 1.</p></li>
-<li><p><em>lr</em> [float] - sets the learning rate used during tratinig. Take into account that we used a linear warmup at the beginnig of the triaining.</p></li>
+<li><p>Advanced transformer architectures optimized for molecular data</p></li>
+<li><p>Enhanced geometric deep learning integration</p></li>
+<li><p>Improved pretraining strategies on large molecular datasets</p></li>
+<li><p>Optimized multi-task learning for biological property prediction</p></li>
+<li><p>Enhanced inference capabilities for drug discovery workflows</p></li>
 </ul>
-<p>Optionally you can also add information regarding:</p>
-<ul class="simple">
-<li><p><em>task</em> [string] - this specifies if the task is a <code class="docutils literal notranslate"><span class="pre">regression</span></code> or <code class="docutils literal notranslate"><span class="pre">classification</span></code> problem. <em>Default: regression</em></p></li>
-<li><p><em>num_tasks</em> [int] - Number of tasks used. This should be same as the number of property columns in the file containing your training set. <em>Default: 1</em></p></li>
-</ul>
-<p><strong>Example:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Regression Example</span>
-mole_train<span class="w"> </span><span class="nv">model</span><span class="o">=</span>finetune<span class="w">  </span><span class="nv">data_file</span><span class="o">=</span><span class="s1">&#39;data/TDC_Half_Life_Obach_train_seed0.parquet&#39;</span><span class="w"> </span><span class="nv">checkpoint_path</span><span class="o">=</span>null<span class="w"> </span><span class="nv">dropout</span><span class="o">=</span><span class="m">0</span>.1<span class="w"> </span><span class="nv">lr</span><span class="o">=</span><span class="m">1</span>.0e-06<span class="w"> </span><span class="nv">task</span><span class="o">=</span>regression<span class="w"> </span><span class="nv">num_tasks</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>model.name<span class="o">=</span><span class="s1">&#39;MolE_Finetune_Regression&#39;</span><span class="w"> </span>model.hyperparameters.datamodule.validation_data<span class="o">=</span><span class="s1">&#39;data/TDC_Half_Life_Obach_valid_seed0.parquet&#39;</span>
-
-<span class="c1"># Classification Example</span>
-mole_train<span class="w"> </span><span class="nv">model</span><span class="o">=</span>finetune<span class="w">  </span><span class="nv">data_file</span><span class="o">=</span><span class="s1">&#39;data/TDC_HIA_Hou_train_seed0.csv&#39;</span><span class="w"> </span><span class="nv">checkpoint_path</span><span class="o">=</span>null<span class="w"> </span><span class="nv">dropout</span><span class="o">=</span><span class="m">0</span>.1<span class="w"> </span><span class="nv">lr</span><span class="o">=</span><span class="m">1</span>.0e-06<span class="w"> </span><span class="nv">task</span><span class="o">=</span>classification<span class="w"> </span><span class="nv">num_tasks</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>model.name<span class="o">=</span><span class="s1">&#39;MolE_Finetune_Classification&#39;</span><span class="w"> </span>model.hyperparameters.datamodule.validation_data<span class="o">=</span><span class="s1">&#39;data/TDC_HIA_Hou_valid_seed0.csv&#39;</span>
-</pre></div>
-</div>
-<p>Training data should be a csv file containing at least a column named <strong>smiles</strong> and at least one property used for training</p>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head text-center"><p>smiles</p></th>
-<th class="head text-center"><p>Property1</p></th>
-<th class="head text-center"><p>Property2</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td class="text-center"><p>CCC</p></td>
-<td class="text-center"><p>301</p></td>
-<td class="text-center"><p>283</p></td>
-</tr>
-<tr class="row-odd"><td class="text-center"><p>c1ccccc1</p></td>
-<td class="text-center"><p>192</p></td>
-<td class="text-center"><p>327</p></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="how-to-predict-properties-of-new-molecules">
-<h4>How to predict properties of new molecules?<a class="headerlink" href="#how-to-predict-properties-of-new-molecules" title="Link to this heading"></a></h4>
-<p>Once you have trained a model you can use it to predict properties of new molecules in the following way.</p>
-<section id="from-a-python-shell-or-jupyter-notebook">
-<h5>From a python shell or jupyter notebook<a class="headerlink" href="#from-a-python-shell-or-jupyter-notebook" title="Link to this heading"></a></h5>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>from<span class="w"> </span>mole<span class="w"> </span>import<span class="w"> </span>mole_predict
-import<span class="w"> </span>pandas<span class="w"> </span>as<span class="w"> </span>pd
-
-<span class="nv">smiles</span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s1">&#39;CCC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CCCCCC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CCCCC&#39;</span><span class="o">]</span><span class="w">  </span><span class="c1"># list of smiles</span>
-
-<span class="nv">predictions</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>mole_predict.predict<span class="o">(</span><span class="nv">smiles</span><span class="o">=</span>smiles,<span class="w"> </span><span class="nv">task</span><span class="o">=</span><span class="s1">&#39;regression&#39;</span>,<span class="w"> </span><span class="nv">num_tasks</span><span class="o">=</span><span class="m">1</span>,<span class="w"> </span><span class="nv">pretrained_model</span><span class="o">=</span>&lt;PATH_TO_CHECKPOINT&gt;,<span class="w"> </span><span class="nv">batch_size</span><span class="o">=</span><span class="m">32</span>,<span class="w"> </span><span class="nv">num_workers</span><span class="o">=</span><span class="m">4</span><span class="o">)</span>
-
-<span class="nv">df</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>pd.DataFrame<span class="o">(</span>predictions<span class="o">)</span>
-df.insert<span class="w"> </span><span class="o">(</span><span class="m">0</span>,<span class="w"> </span><span class="s1">&#39;smiles&#39;</span>,<span class="w"> </span>smiles<span class="o">)</span>
-df.head<span class="o">()</span>
-</pre></div>
-</div>
-</section>
-<section id="from-command-line">
-<h5>From command line<a class="headerlink" href="#from-command-line" title="Link to this heading"></a></h5>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mole_predict<span class="w"> </span>--smiles<span class="w"> </span><span class="s2">&quot;CCC c1ccccc1&quot;</span><span class="w"> </span>--task<span class="w"> </span>regression<span class="w"> </span>--num_tasks<span class="w"> </span><span class="m">2</span><span class="w"> </span>--pretrained_model<span class="w"> </span>&lt;path<span class="w"> </span>to<span class="w"> </span>checkpoint&gt;
-</pre></div>
-</div>
-<p>TO DO: predcit from smiles directly from a file</p>
-</section>
-</section>
-<section id="how-to-compute-embeddings-for-molecules">
-<h4>How to compute embeddings for molecules?<a class="headerlink" href="#how-to-compute-embeddings-for-molecules" title="Link to this heading"></a></h4>
-<p>You can also compute embeddings of molecules using a pre-trained MolE model. These embeddings can be used as molecular fingerprints for model training or similarity search.</p>
-<section id="id1">
-<h5>From a python shell or jupyter notebook<a class="headerlink" href="#id1" title="Link to this heading"></a></h5>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>from<span class="w"> </span>mole<span class="w"> </span>import<span class="w"> </span>mole_predict
-
-
-<span class="nv">smiles</span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s1">&#39;CCC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CCCCCC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CC&#39;</span>,<span class="w"> </span><span class="s1">&#39;CCCCC&#39;</span><span class="o">]</span><span class="w">  </span><span class="c1"># list of smiles</span>
-
-<span class="nv">embeddings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>mole_predict.encode<span class="o">(</span><span class="nv">smiles</span><span class="o">=</span>smiles,<span class="w"> </span><span class="nv">pretrained_model</span><span class="o">=</span>&lt;PATH_TO_CHECKPOINT&gt;,<span class="w"> </span><span class="nv">batch_size</span><span class="o">=</span><span class="m">32</span>,<span class="w"> </span><span class="nv">num_workers</span><span class="o">=</span><span class="m">4</span><span class="o">)</span>
-embeddings.shape
-</pre></div>
-</div>
-<!-- LICENSE -->
-</section>
-</section>
-</section>
-<section id="license">
-<h3>License<a class="headerlink" href="#license" title="Link to this heading"></a></h3>
-<p>Distributed under the Attribution-NonCommercial 4.0 International License (CC-BY-NC 4.0). See <code class="docutils literal notranslate"><span class="pre">LICENSE</span></code> for more information.</p>
-</section>
+<p><strong>Original MolE Foundation:</strong></p>
+<p>The underlying MolE architecture combines geometric deep learning with transformers,
+using self-supervised learning on ~842 million molecules followed by multi-task
+training on biological datasets.</p>
 </section>
 <section id="project-summaries">
 <h2>Project Summaries<a class="headerlink" href="#project-summaries" title="Link to this heading"></a></h2>
@@ -1276,7 +1101,7 @@ embeddings.shape
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2025, MolE Team.</p>
+    <p>&#169; Copyright 2025, HotSpot Therapeutics.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

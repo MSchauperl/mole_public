@@ -4,7 +4,7 @@
 Installation
 ============
 
-This guide provides comprehensive installation instructions for MolE on different platforms and setups.
+This guide provides comprehensive installation instructions for HotSpot Therapeutics' enhanced MolE implementation on different platforms and setups.
 
 Basic Installation
 ==================
@@ -23,17 +23,17 @@ Quick Install
 .. code-block:: bash
 
    # Create virtual environment
-   pyenv virtualenv mole
-   pyenv activate mole
+   pyenv virtualenv mole-enhanced
+   pyenv activate mole-enhanced
 
-   # Clone repository
-   git clone https://github.com/recursionpharma/mole_public.git
-   cd mole_public
+   # Clone repository (update with your internal repository URL)
+   git clone <your-internal-repository-url>
+   cd mole_enhanced
 
    # Install dependencies
    pip install -r requirements/main_3.10.txt  # or main_3.10_gpu.txt for CUDA
 
-   # Install MolE
+   # Install MolE Enhanced
    pip install -e .
 
 For detailed setup instructions and troubleshooting, see the sections below.

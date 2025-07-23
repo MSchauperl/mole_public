@@ -2,10 +2,12 @@
 MolE - Molecular Embeddings
 =================================
 
-**MolE** is Recursion's foundation model for chemistry which combines geometric deep learning with
-transformers to learn meaningful representations of molecules. MolE leverages extensive labeled and 
-unlabeled datasets in two pretraining steps, first using self-supervised learning on ~842 million 
-molecules, followed by massive multi-task training to assimilate biological information.
+This project represents **HotSpot Therapeutics' advanced development** building upon the MolE 
+foundation model for chemistry. Our work combines geometric deep learning with transformer 
+architectures to create enhanced molecular representations. This enhanced implementation 
+leverages extensive labeled and unlabeled datasets through improved pretraining strategies, 
+first using self-supervised learning on ~842 million molecules, followed by optimized 
+multi-task training to better assimilate biological information.
 
 .. image:: https://raw.githubusercontent.com/recursionpharma/mole_public/main/docs/MolE_fig.png
    :alt: MolE Architecture

@@ -4,7 +4,7 @@
 Troubleshooting
 ===============
 
-Common issues and solutions when working with MolE.
+Common issues and solutions when working with HotSpot Therapeutics' enhanced MolE implementation.
 
 Installation Issues
 ===================
@@ -144,7 +144,7 @@ Getting Help
 
 If you encounter issues not covered here:
 
-1. Check the `GitHub Issues <https://github.com/recursionpharma/mole_public/issues>`_
+1. Contact the HotSpot Therapeutics computational team
 2. Review the documentation thoroughly
 3. Ensure you're using the latest version
-4. Create a minimal reproducible example 
+4. Create a minimal reproducible example for internal support 
