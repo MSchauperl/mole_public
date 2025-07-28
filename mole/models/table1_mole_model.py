@@ -37,6 +37,7 @@ class Table1MolEModel(nn.Module):
         pretrained_path: Optional[str] = None,
         regression_loss_weight: float = 0.004,
         classification_loss_weight: float = 1.0,
+        selected_tasks: Optional[List[str]] = None,
         **kwargs
     ):
         """
@@ -49,6 +50,7 @@ class Table1MolEModel(nn.Module):
             pretrained_path: Path to pretrained MolE weights
             regression_loss_weight: Weight for regression loss (default: 0.004)
             classification_loss_weight: Weight for classification loss (default: 1.0)
+            selected_tasks: List of task names to create prediction heads for
             **kwargs: Additional arguments
         """
         super().__init__()
@@ -70,7 +72,8 @@ class Table1MolEModel(nn.Module):
             hidden_dim=self.hidden_dim,
             dropout=dropout,
             regression_loss_weight=regression_loss_weight,
-            classification_loss_weight=classification_loss_weight
+            classification_loss_weight=classification_loss_weight,
+            selected_tasks=selected_tasks
         )
         
         # Freeze encoder if requested
@@ -142,10 +145,10 @@ class Table1MolEModel(nn.Module):
             'hidden_states': hidden_states
         }
     
-    def compute_loss(
+    def compute_loss_and_metrics(
         self,
-        regression_output: torch.Tensor,
-        classification_output: torch.Tensor,
+        regression_output: Optional[torch.Tensor],
+        classification_output: Optional[torch.Tensor],
         targets: Dict[str, torch.Tensor],
         masks: Dict[str, torch.Tensor],
         device: torch.device
@@ -154,8 +157,8 @@ class Table1MolEModel(nn.Module):
         Compute loss for all tasks with proper masking.
         
         Args:
-            regression_output: Model predictions for regression tasks
-            classification_output: Model predictions for classification tasks
+            regression_output: Model predictions for regression tasks (can be None)
+            classification_output: Model predictions for classification tasks (can be None)
             targets: Dictionary of target values for each task
             masks: Dictionary of masks for each task
             device: Device to run computations on
@@ -170,11 +173,10 @@ class Table1MolEModel(nn.Module):
         classification_masks = []
         
         task_type_mapping = get_task_type_mapping()
-        all_tasks = get_all_tasks()
         
-        # Separate regression and classification tasks
-        regression_tasks = [task for task in all_tasks if task_type_mapping[task] == 'regression']
-        classification_tasks = [task for task in all_tasks if task_type_mapping[task] == 'classification']
+        # Only get tasks that have corresponding heads
+        regression_tasks = self.prediction_heads.regression_tasks if self.prediction_heads.regression_head is not None else []
+        classification_tasks = self.prediction_heads.classification_tasks if self.prediction_heads.classification_head is not None else []
         
         # Prepare regression data
         for task in regression_tasks:
@@ -200,59 +202,83 @@ class Table1MolEModel(nn.Module):
                 classification_masks.append(task_masks)
         
         # Stack tensors if we have any tasks
-        if regression_targets:
+        if regression_targets and regression_output is not None:
             regression_targets = torch.stack(regression_targets, dim=1)  # [batch_size, num_regression_tasks]
             regression_masks = torch.stack(regression_masks, dim=1)  # [batch_size, num_regression_tasks]
         else:
-            regression_targets = torch.empty(regression_output.shape[0], 0, device=device)
-            regression_masks = torch.empty(regression_output.shape[0], 0, dtype=torch.bool, device=device)
+            regression_targets = None
+            regression_masks = None
         
-        if classification_targets:
+        if classification_targets and classification_output is not None:
             classification_targets = torch.stack(classification_targets, dim=1)  # [batch_size, num_classification_tasks]
             classification_masks = torch.stack(classification_masks, dim=1)  # [batch_size, num_classification_tasks]
         else:
-            classification_targets = torch.empty(classification_output.shape[0], 0, device=device)
-            classification_masks = torch.empty(classification_output.shape[0], 0, dtype=torch.bool, device=device)
+            classification_targets = None
+            classification_masks = None
         
-        # Ensure output dimensions match target dimensions
-        if regression_targets.shape[1] != regression_output.shape[1]:
-            logger.warning(f"Regression output dimension ({regression_output.shape[1]}) doesn't match targets ({regression_targets.shape[1]})")
-            # Pad or truncate as needed
-            if regression_targets.shape[1] < regression_output.shape[1]:
-                # Pad targets with zeros
-                padding = torch.zeros(regression_output.shape[0], regression_output.shape[1] - regression_targets.shape[1], device=device)
-                regression_targets = torch.cat([regression_targets, padding], dim=1)
-                padding_mask = torch.zeros(regression_output.shape[0], regression_output.shape[1] - regression_masks.shape[1], dtype=torch.bool, device=device)
-                regression_masks = torch.cat([regression_masks, padding_mask], dim=1)
-            else:
-                # Truncate targets
-                regression_targets = regression_targets[:, :regression_output.shape[1]]
-                regression_masks = regression_masks[:, :regression_output.shape[1]]
+        # Compute losses only for available heads
+        total_loss = torch.tensor(0.0, device=device)
+        loss_dict = {}
         
-        if classification_targets.shape[1] != classification_output.shape[1]:
-            logger.warning(f"Classification output dimension ({classification_output.shape[1]}) doesn't match targets ({classification_targets.shape[1]})")
-            # Pad or truncate as needed
-            if classification_targets.shape[1] < classification_output.shape[1]:
-                # Pad targets with zeros
-                padding = torch.zeros(classification_output.shape[0], classification_output.shape[1] - classification_targets.shape[1], device=device)
-                classification_targets = torch.cat([classification_targets, padding], dim=1)
-                padding_mask = torch.zeros(classification_output.shape[0], classification_output.shape[1] - classification_masks.shape[1], dtype=torch.bool, device=device)
-                classification_masks = torch.cat([classification_masks, padding_mask], dim=1)
-            else:
-                # Truncate targets
-                classification_targets = classification_targets[:, :classification_output.shape[1]]
-                classification_masks = classification_masks[:, :classification_output.shape[1]]
+        # Regression loss
+        if regression_output is not None and regression_targets is not None:
+            # Ensure output dimensions match target dimensions
+            if regression_targets.shape[1] != regression_output.shape[1]:
+                logger.warning(f"Regression output dimension ({regression_output.shape[1]}) doesn't match targets ({regression_targets.shape[1]})")
+                # Pad or truncate as needed
+                if regression_targets.shape[1] < regression_output.shape[1]:
+                    # Pad targets with zeros
+                    padding = torch.zeros(regression_output.shape[0], regression_output.shape[1] - regression_targets.shape[1], device=device)
+                    regression_targets = torch.cat([regression_targets, padding], dim=1)
+                    padding_mask = torch.zeros(regression_output.shape[0], regression_output.shape[1] - regression_masks.shape[1], dtype=torch.bool, device=device)
+                    regression_masks = torch.cat([regression_masks, padding_mask], dim=1)
+                else:
+                    # Truncate targets
+                    regression_targets = regression_targets[:, :regression_output.shape[1]]
+                    regression_masks = regression_masks[:, :regression_output.shape[1]]
+            
+            # Compute regression loss
+            regression_loss = nn.functional.mse_loss(
+                regression_output * regression_masks.float(),
+                regression_targets * regression_masks.float(),
+                reduction='sum'
+            )
+            if regression_masks.sum() > 0:
+                regression_loss = regression_loss / regression_masks.sum()
+            
+            loss_dict['regression_loss'] = regression_loss
+            total_loss += self.prediction_heads.regression_loss_weight * regression_loss
         
-        # Compute loss using prediction heads
-        loss_dict = self.prediction_heads.compute_loss(
-            regression_output=regression_output,
-            classification_output=classification_output,
-            regression_targets=regression_targets,
-            classification_targets=classification_targets,
-            regression_mask=regression_masks,
-            classification_mask=classification_masks
-        )
+        # Classification loss  
+        if classification_output is not None and classification_targets is not None:
+            # Ensure output dimensions match target dimensions
+            if classification_targets.shape[1] != classification_output.shape[1]:
+                logger.warning(f"Classification output dimension ({classification_output.shape[1]}) doesn't match targets ({classification_targets.shape[1]})")
+                # Pad or truncate as needed
+                if classification_targets.shape[1] < classification_output.shape[1]:
+                    # Pad targets with zeros
+                    padding = torch.zeros(classification_output.shape[0], classification_output.shape[1] - classification_targets.shape[1], device=device)
+                    classification_targets = torch.cat([classification_targets, padding], dim=1)
+                    padding_mask = torch.zeros(classification_output.shape[0], classification_output.shape[1] - classification_masks.shape[1], dtype=torch.bool, device=device)
+                    classification_masks = torch.cat([classification_masks, padding_mask], dim=1)
+                else:
+                    # Truncate targets
+                    classification_targets = classification_targets[:, :classification_output.shape[1]]
+                    classification_masks = classification_masks[:, :classification_output.shape[1]]
+            
+            # Compute classification loss
+            classification_loss = nn.functional.binary_cross_entropy_with_logits(
+                classification_output * classification_masks.float(),
+                classification_targets * classification_masks.float(),
+                reduction='sum'
+            )
+            if classification_masks.sum() > 0:
+                classification_loss = classification_loss / classification_masks.sum()
+            
+            loss_dict['classification_loss'] = classification_loss
+            total_loss += self.prediction_heads.classification_loss_weight * classification_loss
         
+        loss_dict['total_loss'] = total_loss
         return loss_dict
     
     def compute_metrics(
@@ -376,6 +402,7 @@ def create_table1_mole_model(
     pretrained_path: Optional[str] = None,
     regression_loss_weight: float = 0.004,
     classification_loss_weight: float = 1.0,
+    selected_tasks: Optional[List[str]] = None,
     **kwargs
 ) -> Table1MolEModel:
     """
@@ -388,6 +415,7 @@ def create_table1_mole_model(
         pretrained_path: Path to pretrained MolE weights
         regression_loss_weight: Weight for regression loss (default: 0.004)
         classification_loss_weight: Weight for classification loss (default: 1.0)
+        selected_tasks: List of task names to create prediction heads for
         **kwargs: Additional arguments
         
     Returns:
@@ -421,6 +449,7 @@ def create_table1_mole_model(
         pretrained_path=pretrained_path,
         regression_loss_weight=regression_loss_weight,
         classification_loss_weight=classification_loss_weight,
+        selected_tasks=selected_tasks,
         **kwargs
     )
 
@@ -472,7 +501,7 @@ if __name__ == "__main__":
     print(f"  CLS representation shape: {outputs['cls_representation'].shape}")
     
     # Compute loss
-    loss_dict = model.compute_loss(
+    loss_dict = model.compute_loss_and_metrics(
         regression_output=outputs['regression_output'],
         classification_output=outputs['classification_output'],
         targets=targets,

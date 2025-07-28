@@ -180,8 +180,8 @@ def main():
         print("=" * 60)
         
         # Show other examples
-        run_training_with_pretrained()
-        run_training_with_functional_features()
+        #run_training_with_pretrained()
+        #run_training_with_functional_features()
         
         print(f"\n" + "=" * 60)
         print("📚 ADDITIONAL TRAINING OPTIONS")

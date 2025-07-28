@@ -11,7 +11,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
@@ -43,23 +43,36 @@ def get_arg_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # Data arguments
+    # Dataset arguments
     parser.add_argument(
-        "--data_path",
-        type=str,
-        default="data/tdc/tdc_table1_datasets.csv",
-        help="Path to Table 1 datasets CSV file",
+        "--data_path", type=str, required=True, help="Path to Table 1 datasets CSV"
     )
     parser.add_argument(
-        "--vocab_path",
-        type=str,
+        "--vocab_path", type=str, 
         default="mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
-        help="Path to atom environment vocabulary file",
+        help="Path to atom environment vocabulary file"
+    )
+    parser.add_argument(
+        "--tasks", type=str, nargs="+", default=None, 
+        help="List of specific tasks to train on (e.g., --tasks Caco2 Lipophilicity Solubility). If not specified, all tasks are used."
+    )
+    parser.add_argument(
+        "--task_type", type=str, choices=["regression", "classification", "all"], default="all",
+        help="Filter tasks by type: 'regression', 'classification', or 'all' (default)"
+    )
+    parser.add_argument(
+        "--use_features", action="store_true", help="Use functional features"
     )
 
     # Model arguments
     parser.add_argument(
         "--hidden_size", type=int, default=768, help="Hidden size for transformer"
+    )
+    parser.add_argument(
+        "--embedding_size", type=int, default=None, help="Embedding size (defaults to hidden_size if not specified)"
+    )
+    parser.add_argument(
+        "--max_position_embeddings", type=int, default=2048, help="Maximum sequence length for position embeddings"
     )
     parser.add_argument(
         "--num_hidden_layers", type=int, default=12, help="Number of transformer layers"
@@ -86,9 +99,6 @@ def get_arg_parser():
     # Atom environment arguments
     parser.add_argument(
         "--radius", type=int, default=0, help="Morgan fingerprint radius for atom environments"
-    )
-    parser.add_argument(
-        "--use_features", action="store_true", help="Use functional features for atom environments"
     )
     parser.add_argument(
         "--max_length", type=int, default=128, help="Maximum sequence length"
@@ -199,15 +209,64 @@ def get_arg_parser():
     return parser
 
 
+def filter_tasks(args) -> List[str]:
+    """Filter tasks based on command line arguments.
+    
+    Args:
+        args: Parsed command line arguments
+        
+    Returns:
+        List of task names to train on
+    """
+    from configs.table1_task_config import get_all_tasks, get_task_type_mapping
+    
+    all_tasks = get_all_tasks()
+    task_type_mapping = get_task_type_mapping()
+    
+    # Start with all tasks
+    filtered_tasks = all_tasks.copy()
+    
+    # Filter by task type if specified
+    if args.task_type != "all":
+        filtered_tasks = [task for task in filtered_tasks if task_type_mapping[task] == args.task_type]
+    
+    # Filter by specific task names if provided
+    if args.tasks is not None:
+        # Validate that all specified tasks exist
+        invalid_tasks = [task for task in args.tasks if task not in all_tasks]
+        if invalid_tasks:
+            raise ValueError(f"Invalid task names: {invalid_tasks}. Available tasks: {all_tasks}")
+        
+        # Only keep tasks that are in both the filtered list and the specified list
+        filtered_tasks = [task for task in filtered_tasks if task in args.tasks]
+    
+    if not filtered_tasks:
+        raise ValueError("No tasks selected. Please check your --tasks and --task_type arguments.")
+    
+    logging.info(f"Selected tasks ({len(filtered_tasks)}): {filtered_tasks}")
+    
+    # Show task types for clarity
+    regression_tasks = [task for task in filtered_tasks if task_type_mapping[task] == 'regression']
+    classification_tasks = [task for task in filtered_tasks if task_type_mapping[task] == 'classification']
+    
+    if regression_tasks:
+        logging.info(f"Regression tasks ({len(regression_tasks)}): {regression_tasks}")
+    if classification_tasks:
+        logging.info(f"Classification tasks ({len(classification_tasks)}): {classification_tasks}")
+    
+    return filtered_tasks
+
+
 def create_model_config(args) -> Dict[str, Any]:
     """Create model configuration from arguments."""
     return {
         'hidden_size': args.hidden_size,
+        'embedding_size': args.embedding_size if args.embedding_size is not None else args.hidden_size,
         'num_attention_heads': args.num_attention_heads,
         'num_hidden_layers': args.num_hidden_layers,
         'intermediate_size': args.intermediate_size,
         'vocab_size': 1000,  # Will be overridden by vocabulary size
-        'max_position_embeddings': 512,
+        'max_position_embeddings': args.max_position_embeddings,
         'layer_norm_eps': 1e-12,
         'hidden_dropout_prob': args.dropout,
         'attention_probs_dropout_prob': args.dropout,
@@ -324,26 +383,25 @@ class Table1MolELightningModule(pl.LightningModule):
         if (self.current_epoch + 1) % 5 == 0:  # Store predictions for 5th, 10th, 15th, ... epochs
             # Store classification predictions and targets
             classification_targets, classification_masks = self._process_classification_targets_masks(targets, masks)
-            if classification_targets is not None:
+            if classification_targets is not None and outputs.get('classification_output') is not None:
                 self.train_predictions['classification'].append(outputs['classification_output'].detach().cpu())
                 self.train_targets['classification'].append(classification_targets.detach().cpu())
                 self.train_masks['classification'].append(classification_masks.detach().cpu())
             
             # Store regression predictions and targets
             regression_targets, regression_masks = self._process_regression_targets_masks(targets, masks)
-            if regression_targets is not None:
+            if regression_targets is not None and outputs.get('regression_output') is not None:
                 self.train_predictions['regression'].append(outputs['regression_output'].detach().cpu())
                 self.train_targets['regression'].append(regression_targets.detach().cpu())
                 self.train_masks['regression'].append(regression_masks.detach().cpu())
         
-        # Compute loss
-        device = next(self.parameters()).device
-        loss_dict = self.model.compute_loss(
-            regression_output=outputs['regression_output'],
-            classification_output=outputs['classification_output'],
+        # Compute loss and metrics
+        loss_dict = self.model.compute_loss_and_metrics(
+            regression_output=outputs.get('regression_output'),
+            classification_output=outputs.get('classification_output'),
             targets=targets,
             masks=masks,
-            device=device
+            device=self.device
         )
         
         total_loss = loss_dict['total_loss']
@@ -487,21 +545,22 @@ class Table1MolELightningModule(pl.LightningModule):
         # Get targets and masks from batch
         targets, masks = self._extract_targets_and_masks(batch)
         
-        # Compute loss
-        device = next(self.parameters()).device
-        loss_dict = self.model.compute_loss(
-            regression_output=outputs['regression_output'],
-            classification_output=outputs['classification_output'],
+        # Compute loss and metrics
+        loss_dict = self.model.compute_loss_and_metrics(
+            regression_output=outputs.get('regression_output'),
+            classification_output=outputs.get('classification_output'),
             targets=targets,
             masks=masks,
-            device=device
+            device=self.device
         )
         
         total_loss = loss_dict['total_loss']
         
-        # Store predictions for epoch-level metric computation
-        self.val_predictions['classification'].append(outputs['classification_output'].detach().cpu())
-        self.val_predictions['regression'].append(outputs['regression_output'].detach().cpu())
+        # Store predictions for epoch-level metric computation (only if they exist)
+        if outputs.get('classification_output') is not None:
+            self.val_predictions['classification'].append(outputs['classification_output'].detach().cpu())
+        if outputs.get('regression_output') is not None:
+            self.val_predictions['regression'].append(outputs['regression_output'].detach().cpu())
         
         # Prepare targets and masks for storage
         from configs.table1_task_config import get_all_tasks, get_task_type_mapping
@@ -520,8 +579,8 @@ class Table1MolELightningModule(pl.LightningModule):
                 classification_targets.append(targets[task].detach().cpu())
                 classification_masks.append(masks[task].detach().cpu())
             else:
-                # Add dummy data for missing tasks
-                batch_size = outputs['classification_output'].shape[0]
+                # Add dummy data for missing tasks (get batch_size from input batch)
+                batch_size = batch['x'].shape[0]
                 classification_targets.append(torch.zeros(batch_size, device='cpu'))
                 classification_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
         
@@ -537,8 +596,8 @@ class Table1MolELightningModule(pl.LightningModule):
                 regression_targets.append(targets[task].detach().cpu())
                 regression_masks.append(masks[task].detach().cpu())
             else:
-                # Add dummy data for missing tasks
-                batch_size = outputs['regression_output'].shape[0]
+                # Add dummy data for missing tasks (get batch_size from input batch)
+                batch_size = batch['x'].shape[0]
                 regression_targets.append(torch.zeros(batch_size, device='cpu'))
                 regression_masks.append(torch.zeros(batch_size, dtype=torch.bool, device='cpu'))
         
@@ -711,23 +770,23 @@ class Table1MolELightningModule(pl.LightningModule):
         # Accumulate predictions for test metrics
         # Store classification predictions and targets
         classification_targets, classification_masks = self._process_classification_targets_masks(targets, masks)
-        if classification_targets is not None:
+        if classification_targets is not None and outputs.get('classification_output') is not None:
             self.test_predictions['classification'].append(outputs['classification_output'].detach().cpu())
             self.test_targets['classification'].append(classification_targets.detach().cpu())
             self.test_masks['classification'].append(classification_masks.detach().cpu())
         
         # Store regression predictions and targets
         regression_targets, regression_masks = self._process_regression_targets_masks(targets, masks)
-        if regression_targets is not None:
+        if regression_targets is not None and outputs.get('regression_output') is not None:
             self.test_predictions['regression'].append(outputs['regression_output'].detach().cpu())
             self.test_targets['regression'].append(regression_targets.detach().cpu())
             self.test_masks['regression'].append(regression_masks.detach().cpu())
         
         # Compute loss for logging
         device = next(self.parameters()).device
-        loss_dict = self.model.compute_loss(
-            regression_output=outputs['regression_output'],
-            classification_output=outputs['classification_output'],
+        loss_dict = self.model.compute_loss_and_metrics(
+            regression_output=outputs.get('regression_output'),
+            classification_output=outputs.get('classification_output'),
             targets=targets,
             masks=masks,
             device=device
@@ -870,10 +929,14 @@ def main():
     logging.info("Starting Table 1 MolE training")
     logging.info(f"Output directory: {args.output_dir}/{args.model_name}")
     
+    # Filter tasks based on arguments
+    selected_tasks = filter_tasks(args)
+    
     # Create data loader
     logging.info("Setting up data loader...")
     data_loader = create_admet_dataloader(
         data_path=args.data_path,
+        selected_tasks=selected_tasks,
         batch_size=args.batch_size,
         test_size=args.test_size,
         val_size=args.val_size,
@@ -899,7 +962,8 @@ def main():
         freeze_encoder=args.freeze_encoder,
         pretrained_path=args.pretrained_path,
         regression_loss_weight=args.regression_loss_weight,
-        classification_loss_weight=args.classification_loss_weight
+        classification_loss_weight=args.classification_loss_weight,
+        selected_tasks=selected_tasks
     )
     
     # Create Lightning module

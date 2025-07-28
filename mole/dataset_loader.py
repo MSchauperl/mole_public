@@ -244,6 +244,7 @@ class ADMETDataLoader:
         self,
         data_path: str = "data/tdc/tdc_table1_datasets.csv",
         task_config: Dict[str, Any] = None,
+        selected_tasks: List[str] = None,
         vocab_path: str = "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
         radius: int = 0,
         use_features: bool = False,
@@ -262,6 +263,7 @@ class ADMETDataLoader:
         Args:
             data_path: Path to the CSV file with Table 1 datasets
             task_config: Task configuration (defaults to flattened TASK_CONFIG)
+            selected_tasks: List of task names to include in the dataset
             vocab_path: Path to vocabulary file for atom environments
             radius: Morgan fingerprint radius for atom environments
             use_features: Whether to use functional features
@@ -283,7 +285,13 @@ class ADMETDataLoader:
             metric_mapping = get_metric_mapping()
             tdc_column_mapping = get_tdc_column_mapping()
             
-            for task_name in get_all_tasks():
+            # Determine which tasks to include
+            tasks_to_include = selected_tasks if selected_tasks is not None else get_all_tasks()
+            
+            for task_name in tasks_to_include:
+                if task_name not in get_all_tasks():
+                    raise ValueError(f"Invalid task name: {task_name}. Available tasks: {get_all_tasks()}")
+                
                 self.task_config[task_name] = {
                     'task_type': task_type_mapping[task_name],
                     'metric': metric_mapping[task_name],
@@ -523,6 +531,7 @@ class ADMETDataLoader:
 
 def create_admet_dataloader(
     data_path: str = "data/tdc/tdc_table1_datasets.csv",
+    selected_tasks: List[str] = None,
     batch_size: int = 32,
     test_size: float = 0.2,
     val_size: float = 0.1,
@@ -534,6 +543,7 @@ def create_admet_dataloader(
     
     Args:
         data_path: Path to the CSV file with Table 1 datasets
+        selected_tasks: List of task names to include in the dataset
         batch_size: Batch size for data loaders
         test_size: Fraction of data to use for testing
         val_size: Fraction of remaining data to use for validation
@@ -545,6 +555,7 @@ def create_admet_dataloader(
     """
     return ADMETDataLoader(
         data_path=data_path,
+        selected_tasks=selected_tasks,
         batch_size=batch_size,
         test_size=test_size,
         val_size=val_size,

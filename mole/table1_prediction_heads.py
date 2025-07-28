@@ -113,26 +113,42 @@ class Table1PredictionHeads(nn.Module):
     
     def __init__(self, hidden_dim: int, dropout: float = 0.1, 
                  regression_loss_weight: float = 1.0, 
-                 classification_loss_weight: float = 1.0):
+                 classification_loss_weight: float = 1.0,
+                 selected_tasks: Optional[List[str]] = None):
         super().__init__()
         
         # Get task information
-        self.regression_tasks = get_regression_tasks()
-        self.classification_tasks = get_classification_tasks()
+        all_regression_tasks = get_regression_tasks()
+        all_classification_tasks = get_classification_tasks()
+        
+        # Filter tasks based on selected_tasks if provided
+        if selected_tasks is not None:
+            self.regression_tasks = [task for task in all_regression_tasks if task in selected_tasks]
+            self.classification_tasks = [task for task in all_classification_tasks if task in selected_tasks]
+        else:
+            self.regression_tasks = all_regression_tasks
+            self.classification_tasks = all_classification_tasks
+        
         self.all_tasks = self.regression_tasks + self.classification_tasks
         
-        # Create separate heads
-        self.regression_head = RegressionHead(
-            hidden_dim=hidden_dim,
-            num_tasks=len(self.regression_tasks),
-            dropout=dropout
-        )
-        
-        self.classification_head = ClassificationHead(
-            hidden_dim=hidden_dim,
-            num_tasks=len(self.classification_tasks),
-            dropout=dropout
-        )
+        # Create heads only if there are tasks of each type
+        if self.regression_tasks:
+            self.regression_head = RegressionHead(
+                hidden_dim=hidden_dim,
+                num_tasks=len(self.regression_tasks),
+                dropout=dropout
+            )
+        else:
+            self.regression_head = None
+            
+        if self.classification_tasks:
+            self.classification_head = ClassificationHead(
+                hidden_dim=hidden_dim,
+                num_tasks=len(self.classification_tasks),
+                dropout=dropout
+            )
+        else:
+            self.classification_head = None
         
         # Task mappings
         self.task_type_mapping = get_task_type_mapping()
@@ -142,22 +158,28 @@ class Table1PredictionHeads(nn.Module):
         self.regression_loss_weight = regression_loss_weight
         self.classification_loss_weight = classification_loss_weight
         
-        # Log the loss weights for debugging
+        # Log the task and loss configuration
         import logging
+        logging.info(f"Prediction heads created for {len(self.all_tasks)} tasks:")
+        if self.regression_tasks:
+            logging.info(f"  Regression tasks ({len(self.regression_tasks)}): {self.regression_tasks}")
+        if self.classification_tasks:
+            logging.info(f"  Classification tasks ({len(self.classification_tasks)}): {self.classification_tasks}")
         logging.info(f"Loss weights: Regression={self.regression_loss_weight:.4f}, Classification={self.classification_loss_weight:.4f}")
     
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """
-        Forward pass through both heads.
+        Forward pass through available heads.
         
         Args:
             x: Input tensor of shape (batch_size, hidden_dim)
             
         Returns:
             Tuple of (regression_output, classification_output)
+            Either output can be None if the corresponding head doesn't exist
         """
-        regression_output = self.regression_head(x)
-        classification_output = self.classification_head(x)
+        regression_output = self.regression_head(x) if self.regression_head is not None else None
+        classification_output = self.classification_head(x) if self.classification_head is not None else None
         
         return regression_output, classification_output
     
