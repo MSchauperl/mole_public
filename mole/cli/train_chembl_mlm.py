@@ -182,6 +182,11 @@ def get_arg_parser():
     parser.add_argument(
         "--classification_loss_weight", type=float, default=1.0, help="Weight for classification loss"
     )
+    parser.add_argument(
+        "--chembl_only",
+        action="store_true",
+        help="Train only on ChemBL classification tasks (disables MLM, sets mlm_loss_weight=0)",
+    )
 
     # MLM arguments
     parser.add_argument(
@@ -337,6 +342,7 @@ def main():
         cls_token=not args.no_cls_token,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        enable_masking=not args.chembl_only,  # Disable masking in ChemBL-only mode
     )
 
     # Setup data to get vocabulary sizes and target info
@@ -384,12 +390,19 @@ def main():
         "total_steps": total_steps,
     }
 
+    # Handle ChemBL-only mode
+    if args.chembl_only:
+        logger.info("ChemBL-only mode enabled: Disabling MLM training")
+        mlm_loss_weight = 0.0
+    else:
+        mlm_loss_weight = args.mlm_loss_weight
+
     lightning_model = ChemBLLightningModule(
         model=core_model,
         optimizer_cfg=optimizer_cfg,
         scheduler_cfg=scheduler_cfg,
         log_predictions=args.log_predictions,
-        mlm_loss_weight=args.mlm_loss_weight,
+        mlm_loss_weight=mlm_loss_weight,
         classification_loss_weight=args.classification_loss_weight,
         log_target_metrics=args.log_target_metrics,
         max_targets_to_log=args.max_targets_to_log,

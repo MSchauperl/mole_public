@@ -39,6 +39,7 @@ class CrossEnvMolDataset(Dataset):
         random_prob: float = 0.1,
         max_length: Optional[int] = None,
         cls_token: bool = True,
+        enable_masking: bool = True,
     ):
         """
         Initialize cross-environment dataset
@@ -56,6 +57,7 @@ class CrossEnvMolDataset(Dataset):
             random_prob: Probability of replacing with random token (default 10%)
             max_length: Maximum sequence length (None for no limit)
             cls_token: Whether to add CLS token at beginning
+            enable_masking: Whether to apply masking (False for classification-only mode)
         """
         self.smiles = smiles
         self.input_radius = input_radius
@@ -67,6 +69,7 @@ class CrossEnvMolDataset(Dataset):
         self.random_prob = random_prob
         self.max_length = max_length
         self.cls_token = cls_token
+        self.enable_masking = enable_masking
 
         # Load vocabularies
         self.input_vocab = open_dictionary(input_vocab_path)
@@ -238,10 +241,16 @@ class CrossEnvMolDataset(Dataset):
                 input_tokens = input_tokens[: self.max_length]
                 target_tokens = target_tokens[: self.max_length]
 
-            # Create MLM sample
-            masked_input, labels, mask = self.create_mlm_sample(
-                input_tokens, target_tokens
-            )
+            # Create MLM sample (conditionally apply masking)
+            if self.enable_masking:
+                masked_input, labels, mask = self.create_mlm_sample(
+                    input_tokens, target_tokens
+                )
+            else:
+                # For classification-only mode: use original tokens, no masking
+                masked_input = input_tokens
+                labels = [-100] * len(target_tokens)  # Ignore all labels for MLM loss
+                mask = [False] * len(input_tokens)  # No tokens are masked
 
             # Create distance matrix for molecular graph
             dist_mat = Chem.GetDistanceMatrix(mol)

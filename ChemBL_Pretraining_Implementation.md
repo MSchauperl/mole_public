@@ -67,7 +67,7 @@ This implementation extends the MolE model to support ChemBL-based pretraining, 
 
 ### Quick Start with Convenience Scripts
 
-**Option 1: T4 Optimized (10% dataset for testing)**
+**Option 1: T4 Optimized (MLM + ChemBL, 10% dataset)**
 ```bash
 # Activate environment
 conda activate mole-py10
@@ -82,16 +82,25 @@ python scripts/pretraining_mlm/run_chembl_training_t4.py \
     --max_epochs 5
 ```
 
-**Option 2: Ultra-Fast Testing (1K molecules)**
+**Option 2: ChemBL-Only Training (NO MLM)**
+```bash
+# Train only on ChemBL classification tasks (no MLM)
+python scripts/pretraining_mlm/run_chembl_only_t4.py
+
+# Or enable ChemBL-only mode on any script
+python scripts/pretraining_mlm/run_chembl_training_t4.py --chembl_only
+```
+
+**Option 3: Ultra-Fast Testing (1K molecules)**
 ```bash
 # Run with minimal dataset for rapid testing/debugging
 python scripts/pretraining_mlm/run_chembl_training_test.py
 
-# Complete in ~5-10 minutes for quick iteration
-python scripts/pretraining_mlm/run_chembl_training_test.py --max_epochs 1
+# ChemBL-only testing
+python scripts/pretraining_mlm/run_chembl_training_test.py --chembl_only
 ```
 
-**Option 3: Full Dataset Training**
+**Option 4: Full Dataset Training**
 ```bash
 # Remove max_samples limitation for full dataset
 python scripts/pretraining_mlm/run_chembl_training_t4.py --max_samples 456331
@@ -121,7 +130,8 @@ python mole/cli/train_chembl_mlm.py \
 - `--max_targets`: Limit number of targets for memory efficiency (default: 100)
 - `--min_target_activity`: Minimum active/inactive labels per target (default: 50)
 - `--max_samples`: Limit dataset size for testing (default: None = full dataset)
-- `--mlm_loss_weight`: Weight for MLM loss (default: 1.0)
+- `--chembl_only`: Train only on ChemBL classification (disables MLM, sets mlm_loss_weight=0)
+- `--mlm_loss_weight`: Weight for MLM loss (default: 1.0, set to 0 for classification-only)
 - `--classification_loss_weight`: Weight for classification loss (default: 1.0)
 - `--log_target_metrics`: Enable per-target metrics logging
 - `--max_targets_to_log`: Limit individually logged targets (default: 50)
@@ -196,12 +206,14 @@ python mole/cli/train_chembl_mlm.py \
 
 The system now supports flexible dataset sizing for different use cases:
 
-| Script | Model Size | Targets | Dataset Size | Est. Time | Use Case |
-|--------|------------|---------|--------------|-----------|----------|
-| `run_chembl_training_test.py` | 128/2L | 10 | 1K (0.2%) | ~5 min | Rapid debugging |
-| `run_chembl_training_t4.py` | 512/8L | 50 | 45K (10%) | ~2 hours | Testing/validation |
-| `run_chembl_training_small.py` | 256/4L | 20 | 456K (100%) | ~15 hours | Memory constrained |
-| **Full Training** | 512/8L+ | 100+ | 456K (100%) | ~20+ hours | Production |
+| Script | Model Size | Targets | Dataset Size | Mode | Est. Time | Use Case |
+|--------|------------|---------|--------------|------|-----------|----------|
+| `run_chembl_training_test.py` | 128/2L | 10 | 1K (0.2%) | MLM+ChemBL | ~5 min | Rapid debugging |
+| `run_chembl_training_test.py --chembl_only` | 128/2L | 10 | 1K (0.2%) | ChemBL only | ~3 min | Classification debugging |
+| `run_chembl_training_t4.py` | 512/8L | 50 | 45K (10%) | MLM+ChemBL | ~2 hours | Testing/validation |
+| `run_chembl_only_t4.py` | 768/8L | 50 | 45K (10%) | ChemBL only | ~1 hour | Classification only |
+| **Full Training** | 512/8L+ | 100+ | 456K (100%) | MLM+ChemBL | ~20+ hours | Production |
+| **Full ChemBL-only** | 768/8L+ | 100+ | 456K (100%) | ChemBL only | ~10+ hours | Classification production |
 
 ### Usage Recommendations
 

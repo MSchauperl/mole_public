@@ -152,10 +152,12 @@ class ChemBLLightningModule(CrossEnvMLM):
             return {"loss": dummy_loss}
 
         # Forward pass
+        # Skip MLM computation if MLM weight is 0 (ChemBL-only mode)
+        mlm_labels = labels if self.mlm_loss_weight > 0 else None
         outputs = self(
             input_ids=input_ids,
             input_mask=input_mask,
-            labels=labels,
+            labels=mlm_labels,
             chembl_targets=batch.chembl_targets,
             chembl_mask=batch.chembl_mask,
             relative_pos=relative_pos,
@@ -237,10 +239,12 @@ class ChemBLLightningModule(CrossEnvMLM):
             return {"val_loss": torch.tensor(0.0, device=self.device)}
 
         # Forward pass
+        # Skip MLM computation if MLM weight is 0 (ChemBL-only mode)
+        mlm_labels = labels if self.mlm_loss_weight > 0 else None
         outputs = self(
             input_ids=input_ids,
             input_mask=input_mask,
-            labels=labels,
+            labels=mlm_labels,
             chembl_targets=batch.chembl_targets,
             chembl_mask=batch.chembl_mask,
             relative_pos=relative_pos,

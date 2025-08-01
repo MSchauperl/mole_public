@@ -43,6 +43,7 @@ class ChemBLDataModule(CrossEnvDataModule):
         random_prob: float = 0.1,
         max_length: Optional[int] = None,
         cls_token: bool = True,
+        enable_masking: bool = True,
         batch_size: int = 32,
         num_workers: int = 4,
         pin_memory: bool = True,
@@ -64,6 +65,7 @@ class ChemBLDataModule(CrossEnvDataModule):
             max_targets: Maximum number of targets to use
             min_target_activity: Minimum activity count per target
             max_samples: Maximum number of samples to use (for testing)
+            enable_masking: Whether to apply masking (False for classification-only mode)
             **kwargs: Additional arguments for parent class
         """
         # Initialize parent without train_data (we'll load ChemBL data differently)
@@ -82,6 +84,7 @@ class ChemBLDataModule(CrossEnvDataModule):
             random_prob=random_prob,
             max_length=max_length,
             cls_token=cls_token,
+            enable_masking=enable_masking,
             batch_size=batch_size,
             num_workers=num_workers,
             pin_memory=pin_memory,
@@ -99,6 +102,7 @@ class ChemBLDataModule(CrossEnvDataModule):
         self.max_targets = max_targets
         self.min_target_activity = min_target_activity
         self.max_samples = max_samples
+        self.enable_masking = enable_masking
         
     def _load_chembl_smiles(self) -> List[str]:
         """Load SMILES from ChemBL pickle file."""
@@ -155,6 +159,7 @@ class ChemBLDataModule(CrossEnvDataModule):
                 "random_prob": self.random_prob,
                 "max_length": self.max_length,
                 "cls_token": self.cls_token,
+                "enable_masking": self.enable_masking,
             }
             
             # Create datasets with correct indices for ChemBL data
@@ -196,6 +201,7 @@ class ChemBLDataModule(CrossEnvDataModule):
                 "random_prob": self.random_prob,
                 "max_length": self.max_length,
                 "cls_token": self.cls_token,
+                "enable_masking": self.enable_masking,
             }
             
             self.test_dataset = ChemBLDatasetWithOffset(
