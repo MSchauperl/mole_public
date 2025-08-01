@@ -9,3 +9,4 @@
 *.csv
 outputs/
 *.pth
+data/ChemBl/
