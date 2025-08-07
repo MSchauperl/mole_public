@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         "--gpus",
         type=int,
-        default=1,
+        default=2,
         choices=[1, 2],
         help="Number of GPUs to use for training (default: 2).",
     )

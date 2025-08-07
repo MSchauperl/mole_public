@@ -1,0 +1,22 @@
+ChemBL Filtered Dataset Metadata
+========================================
+
+Original dataset: 456331 compounds, 1310 targets
+Filtered dataset: 84413 compounds, 10 targets
+Retention rate: 18.5% compounds
+
+Filtering criteria:
+- Top 10 targets by measurement count
+- Compounds with measurements for ≥3 targets
+
+Selected targets:
+   1. CHEMBL1794483 - Original:  86690, Filtered:  29799
+   2. CHEMBL1794345 - Original:  83237, Filtered:  38971
+   3. CHEMBL1794401 - Original:  78166, Filtered:  29976
+   4. CHEMBL1794580 - Original:  63916, Filtered:  33921
+   5. CHEMBL2354221 - Original:  63742, Filtered:  37048
+   6. CHEMBL2114810 - Original:  58673, Filtered:  22661
+   7. CHEMBL1794553 - Original:  58100, Filtered:  29902
+   8. CHEMBL1614458 - Original:  50998, Filtered:  23645
+   9. CHEMBL2354254 - Original:  50145, Filtered:  32085
+  10. CHEMBL1614530 - Original:  45751, Filtered:  19058

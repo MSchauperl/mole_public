@@ -292,6 +292,106 @@ def create_model_config(args) -> Dict[str, Any]:
     }
 
 
+def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Dict[str, int], target_info: Dict[str, Any], output_dir: Path):
+    """Save configuration files for ChemBL training."""
+    import json
+    
+    # Save model configuration
+    model_config_with_vocab = model_config.copy()
+    model_config_with_vocab.update({
+        "input_vocab_size": vocab_sizes["input_vocab_size"],
+        "target_vocab_size": vocab_sizes["target_vocab_size"],
+        "num_targets": target_info["num_targets"],
+    })
+    
+    model_config_path = output_dir / "model_config.json"
+    with open(model_config_path, 'w') as f:
+        json.dump(model_config_with_vocab, f, indent=2)
+    
+    # Save training arguments
+    args_dict = vars(args)
+    # Convert Path objects to strings for JSON serialization
+    for key, value in args_dict.items():
+        if isinstance(value, Path):
+            args_dict[key] = str(value)
+    
+    args_config_path = output_dir / "training_args.json"
+    with open(args_config_path, 'w') as f:
+        json.dump(args_dict, f, indent=2)
+    
+    # Save a human-readable summary
+    summary_path = output_dir / "training_summary.txt"
+    with open(summary_path, 'w') as f:
+        f.write("ChemBL MLM Training Summary\n")
+        f.write("=" * 50 + "\n\n")
+        
+        f.write("DATA CONFIGURATION:\n")
+        f.write(f"  ChemBL SMILES: {args.chembl_smiles_path}\n")
+        f.write(f"  ChemBL labels: {args.chembl_labels_path}\n")
+        f.write(f"  ChemBL target names: {args.chembl_target_names_path}\n")
+        f.write(f"  ChemBL compound names: {args.chembl_compound_names_path}\n")
+        f.write(f"  Input vocabulary: {args.input_vocab}\n")
+        f.write(f"  Target vocabulary: {args.target_vocab}\n")
+        f.write(f"  Input vocab size: {vocab_sizes['input_vocab_size']}\n")
+        f.write(f"  Target vocab size: {vocab_sizes['target_vocab_size']}\n")
+        f.write(f"  Number of ChemBL targets: {target_info['num_targets']}\n")
+        f.write(f"  Max targets: {args.max_targets}\n")
+        f.write(f"  Min target activity: {args.min_target_activity}\n")
+        f.write(f"  Max samples: {args.max_samples or 'All available'}\n")
+        f.write(f"  Input radius: {args.input_radius}\n")
+        f.write(f"  Target radius: {args.target_radius}\n")
+        f.write(f"  Input use features: {args.input_use_features}\n")
+        f.write(f"  Target use features: {args.target_use_features}\n\n")
+        
+        f.write("MODEL CONFIGURATION:\n")
+        f.write(f"  Hidden size: {args.hidden_size}\n")
+        f.write(f"  Number of layers: {args.num_hidden_layers}\n")
+        f.write(f"  Number of attention heads: {args.num_attention_heads}\n")
+        f.write(f"  Intermediate size: {args.intermediate_size}\n")
+        f.write(f"  Dropout: {args.dropout}\n")
+        f.write(f"  Classifier dropout: {args.classifier_dropout}\n\n")
+        
+        f.write("MLM CONFIGURATION:\n")
+        f.write(f"  Mask probability: {args.mask_prob}\n")
+        f.write(f"  Replace probability: {args.replace_prob}\n")
+        f.write(f"  Random probability: {args.random_prob}\n")
+        f.write(f"  Max length: {args.max_length or 'No limit'}\n")
+        f.write(f"  Use CLS token: {not args.no_cls_token}\n")
+        f.write(f"  ChemBL only mode: {args.chembl_only}\n\n")
+        
+        f.write("TRAINING CONFIGURATION:\n")
+        f.write(f"  Batch size: {args.batch_size}\n")
+        f.write(f"  Learning rate: {args.learning_rate}\n")
+        f.write(f"  Weight decay: {args.weight_decay}\n")
+        f.write(f"  Warmup steps: {args.warmup_steps}\n")
+        f.write(f"  Max epochs: {args.max_epochs}\n")
+        f.write(f"  Validation split: {args.validation_split}\n")
+        f.write(f"  Test split: {args.test_split}\n")
+        f.write(f"  Patience: {args.patience}\n")
+        
+        if hasattr(args, 'mlm_loss_weight'):
+            f.write(f"  MLM loss weight: {args.mlm_loss_weight}\n")
+        if hasattr(args, 'classification_loss_weight'):
+            f.write(f"  Classification loss weight: {args.classification_loss_weight}\n")
+        f.write("\n")
+        
+        f.write("HARDWARE CONFIGURATION:\n")
+        f.write(f"  GPUs: {args.gpus}\n")
+        f.write(f"  Precision: {args.precision}\n")
+        f.write(f"  Number of workers: {args.num_workers}\n")
+        f.write(f"  Gradient accumulation: {args.accumulate_grad_batches}\n")
+        f.write(f"  Gradient clipping: {args.gradient_clip_val}\n\n")
+        
+        f.write("OUTPUT CONFIGURATION:\n")
+        f.write(f"  Output directory: {output_dir}\n")
+        f.write(f"  Model name: {args.model_name}\n")
+        f.write(f"  Seed: {args.seed}\n")
+        f.write(f"  Debug mode: {args.debug}\n")
+        f.write(f"  Log predictions: {args.log_predictions}\n")
+        f.write(f"  Log target metrics: {args.log_target_metrics}\n")
+        f.write(f"  Max targets to log: {args.max_targets_to_log}\n")
+
+
 def main():
     """Main training function"""
     args = parse_args()
@@ -356,6 +456,10 @@ def main():
 
     # Create model configuration
     model_config = create_model_config(args)
+    
+    # Save configuration files
+    logger.info("Saving configuration files...")
+    save_chembl_config_files(args, model_config, vocab_sizes, target_info, output_dir)
 
     # Create model
     logger.info("Creating ChemBL model...")
@@ -409,23 +513,26 @@ def main():
     )
 
     # Create callbacks
-    callbacks = [
-        ModelCheckpoint(
-            dirpath=output_dir / "checkpoints",
-            filename="chembl-mlm-{epoch:02d}-{val/total_loss:.3f}",
-            monitor="val/total_loss",
-            mode="min",
-            save_top_k=3,
-            save_last=True,
-        ),
-        LearningRateMonitor(logging_interval="step"),
-        EarlyStopping(
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=output_dir / "checkpoints",
+        filename="{epoch:02d}-{step:005d}-{val/total_loss:.4f}",
+        monitor="val/total_loss",
+        mode="min",
+        save_top_k=5,  # Save the 5 best checkpoints
+        save_last=False,  # Don't save the last checkpoint
+        verbose=True,
+    )
+    lr_monitor = LearningRateMonitor(logging_interval="step")
+    callbacks = [checkpoint_callback, lr_monitor]
+
+    if args.patience > 0:
+        early_stopping_callback = EarlyStopping(
             monitor="val/total_loss",
             mode="min",
             patience=args.patience,
             verbose=True,
-        ),
-    ]
+        )
+        callbacks.append(early_stopping_callback)
 
     # Create logger
     tb_logger = TensorBoardLogger(
