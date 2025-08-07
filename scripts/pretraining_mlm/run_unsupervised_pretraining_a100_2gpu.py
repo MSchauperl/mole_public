@@ -22,7 +22,7 @@ def main():
     parser.add_argument(
         "--gpus",
         type=int,
-        default=2,
+        default=1,
         choices=[1, 2],
         help="Number of GPUs to use for training (default: 2).",
     )
@@ -45,7 +45,7 @@ def main():
         "--target_radius": "1",
         "--target_use_features": "",  # Flag for functional environments
         # Training configuration (A100 2x40GB optimized)
-        "--batch_size": "256",  # Increased for A100
+        "--batch_size": "128",  # Increased for A100
         "--learning_rate": "1e-4",
         "--weight_decay": "0.01",
         "--warmup_steps": "5000",
@@ -56,7 +56,7 @@ def main():
         "--gpus": str(args.gpus),
         "--num_workers": "16",
         "--precision": "bf16",
-        "--accumulate_grad_batches": "4" if args.gpus == 2 else "8",  # Adjust for GPU count
+        "--accumulate_grad_batches": "48" if args.gpus == 2 else "16",  # Adjust for GPU count
         "--gradient_clip_val": "1.0",
         # Memory and efficiency optimizations
         "--max_length": "256",
@@ -64,7 +64,7 @@ def main():
         "--seed": "42",
         "--log_predictions": "",
         "--patience": "5",
-        "--use_torch_compile": "",
+        #"--use_torch_compile": "",
     }
 
     # Start with A100-optimized parameters
@@ -75,13 +75,13 @@ def main():
         "--output_dir": "outputs/guacamol_unsupervised_pretraining_a100_2gpu",
         "--model_name": "guacamol_unsupervised_pretraining_a100_2gpu",
         "--mlm_loss_weight": "1.0",
-        "--regression_loss_weight": "1.0",  # Adjusted to balance with MLM loss (10^4 scale difference)
+        "--regression_loss_weight": "0.2",  # Adjusted to balance with MLM loss (10^4 scale difference)
     }
     params.update(unsupervised_params)
 
     # Build command
     script_path = (
-        Path(__file__).parent.parent / "mole" / "cli" / "train_unsupervised_pretraining.py"
+        Path(__file__).parent.parent.parent / "mole" / "cli" / "train_unsupervised_pretraining.py"
     )
     cmd = [sys.executable, str(script_path)]
 

@@ -30,13 +30,13 @@ default_params = {
     "--target_radius": "1",
     "--target_use_features": "",  # Flag for functional environments
     # Training configuration (NVIDIA A100 optimized for ~1.6M molecules)
-    "--batch_size": "256",  # Increased from 32 for A100
+    "--batch_size": "128",  # Increased from 32 for A100
     "--learning_rate": "1e-4",  # Keep same learning rate
     "--weight_decay": "0.01",
     "--warmup_steps": "5000",  # Adjusted for dataset size
     "--max_epochs": "1",
     "--validation_split": "0.05",
-    "--val_check_interval": "0.5",  # Validate twice per epoch
+    "--val_check_interval": "0.25",  # Validate twice per epoch
     # Hardware configuration (NVIDIA A100 optimized)
     "--gpus": "1",
     "--num_workers": "16",  # Increased workers for A100 (tune based on CPU cores)
@@ -49,13 +49,15 @@ default_params = {
     "--seed": "42",
     "--log_predictions": "",  # Flag to log examples
     #"--use_torch_compile": "",  # Flag to enable torch.compile
+    "--patience": "6", # Stop if validation loss does not improve for 5 checks
+
 }
 
 
 def main():
     # Build command
     script_path = (
-        Path(__file__).parent.parent / "mole" / "cli" / "train_crossenv_mlm.py"
+        Path(__file__).parent.parent.parent / "mole" / "cli" / "train_crossenv_mlm.py"
     )
     cmd = [sys.executable, str(script_path)]
 
