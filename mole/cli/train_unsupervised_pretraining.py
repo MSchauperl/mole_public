@@ -94,6 +94,14 @@ def main():
 
     # Model configuration and instantiation
     model_config = create_model_config(args)
+    
+    # Save configuration files
+    logging.info("Saving configuration files...")
+    from mole.cli.train_crossenv_mlm import save_config_files
+    output_dir = Path(args.output_dir) / args.model_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    save_config_files(args, model_config, vocab_sizes, output_dir)
+    
     model = UnsupervisedPretrainingModel(
         deberta_config=model_config,
         input_vocab_size=vocab_sizes["input_vocab_size"],
@@ -124,11 +132,13 @@ def main():
 
     # Callbacks and Logger
     checkpoint_callback = ModelCheckpoint(
-        dirpath=f"{args.output_dir}/{args.model_name}/checkpoints",
-        filename="{epoch}-{val/total_loss:.2f}",
+        dirpath=output_dir / "checkpoints",
+        filename="{epoch:02d}-{step:005d}-{val/total_loss:.4f}",
         monitor="val/total_loss",
         mode="min",
-        save_top_k=3,
+        save_top_k=5,  # Save the 5 best checkpoints
+        save_last=False,  # Don't save the last checkpoint
+        verbose=True,
     )
     lr_monitor = LearningRateMonitor(logging_interval="step")
     callbacks = [checkpoint_callback, lr_monitor]
@@ -143,7 +153,7 @@ def main():
         callbacks.append(early_stopping_callback)
 
     logger = TensorBoardLogger(
-        save_dir=args.output_dir, name=args.model_name, version="lightning_logs"
+        save_dir=str(output_dir), name="logs", version=None
     )
 
     # Trainer setup
