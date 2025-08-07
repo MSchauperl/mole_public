@@ -34,7 +34,7 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name()}")
     
     # Define paths
-    checkpoint_path = "/home/mschauperl/mole_public/outputs/guacamol_crossenv_mlm/guacamol_r0_to_r1_functional_t4_optimized/checkpoints/epoch=06-step=00209.ckpt"
+    checkpoint_path = "/home/mschauperl/mole_public/outputs/guacamol_crossenv_mlm/guacamol_r0_to_r1_functional_t4_optimized/checkpoints/epoch=03-step=00000000000000000000000000000000000000000000000113-val_loss=3.3236.ckpt"
     input_vocab_path = "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl"
     target_vocab_path = "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl"
     

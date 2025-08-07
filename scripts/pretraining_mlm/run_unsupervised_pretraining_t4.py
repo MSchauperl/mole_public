@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Convenience script to run Multi-Task Pretraining on the GuacaMol dataset.
+Convenience script to run Unsupervised Pretraining on the GuacaMol dataset.
 
 This script trains a model on three tasks simultaneously:
 1. Cross-Environment MLM (Radius 0 Structural -> Radius 1 Functional)
@@ -16,18 +16,18 @@ def main():
     # Inherit most defaults from the T4-optimized cross-environment script
     from run_crossenv_training_t4 import default_params
 
-    # Add/override parameters for multi-task learning
-    multitask_params = {
-        "--output_dir": "outputs/guacamol_multitask_t4",
-        "--model_name": "guacamol_multitask_t4_optimized",
+    # Add/override parameters for unsupervised learning
+    unsupervised_params = {
+        "--output_dir": "outputs/guacamol_unsupervised_pretraining_t4",
+        "--model_name": "guacamol_unsupervised_pretraining_t4",
         "--mlm_loss_weight": "1.0",
         "--regression_loss_weight": "0.1",  # Start with a smaller weight for regression
     }
-    default_params.update(multitask_params)
+    default_params.update(unsupervised_params)
 
     # Build command
     script_path = (
-        Path(__file__).parent.parent / "mole" / "cli" / "train_multitask.py"
+        Path(__file__).parent.parent.parent / "mole" / "cli" / "train_unsupervised_pretraining.py"
     )
     cmd = [sys.executable, str(script_path)]
 
@@ -40,7 +40,7 @@ def main():
     # Add any additional arguments passed to this script
     cmd.extend(sys.argv[1:])
 
-    print("🚀 Starting MolE Multi-Task Pretraining on GuacaMol Dataset")
+    print("🚀 Starting MolE Unsupervised Pretraining on GuacaMol Dataset")
     print("=" * 70)
     print("🎯 GPU: Tesla T4 (16 GB VRAM) - Optimized Configuration")
     print("🎯 Tasks:")

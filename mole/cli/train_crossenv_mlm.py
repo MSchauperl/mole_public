@@ -12,6 +12,7 @@ import argparse
 import logging
 import os
 import sys
+import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -273,6 +274,91 @@ def create_model_config(args) -> Dict[str, Any]:
     }
 
 
+def save_config_files(args, model_config: Dict[str, Any], vocab_sizes: Dict[str, int], output_dir: Path):
+    """Save configuration files to output directory"""
+    
+    # Save model configuration
+    model_config_with_vocab = model_config.copy()
+    model_config_with_vocab.update({
+        "input_vocab_size": vocab_sizes["input_vocab_size"],
+        "target_vocab_size": vocab_sizes["target_vocab_size"],
+    })
+    
+    model_config_path = output_dir / "model_config.json"
+    with open(model_config_path, 'w') as f:
+        json.dump(model_config_with_vocab, f, indent=2)
+    
+    # Save training arguments
+    args_dict = vars(args)
+    # Convert Path objects to strings for JSON serialization
+    for key, value in args_dict.items():
+        if isinstance(value, Path):
+            args_dict[key] = str(value)
+    
+    args_config_path = output_dir / "training_args.json"
+    with open(args_config_path, 'w') as f:
+        json.dump(args_dict, f, indent=2)
+    
+    # Save a human-readable summary
+    summary_path = output_dir / "training_summary.txt"
+    with open(summary_path, 'w') as f:
+        f.write("Cross-Environment MLM Training Summary\n")
+        f.write("=" * 50 + "\n\n")
+        
+        f.write("DATA CONFIGURATION:\n")
+        f.write(f"  Training data: {args.train_data}\n")
+        f.write(f"  Validation data: {args.val_data or 'Split from training'}\n")
+        f.write(f"  Test data: {args.test_data or 'Not provided'}\n")
+        f.write(f"  Input vocabulary: {args.input_vocab}\n")
+        f.write(f"  Target vocabulary: {args.target_vocab}\n")
+        f.write(f"  Input vocab size: {vocab_sizes['input_vocab_size']}\n")
+        f.write(f"  Target vocab size: {vocab_sizes['target_vocab_size']}\n")
+        f.write(f"  Input radius: {args.input_radius}\n")
+        f.write(f"  Target radius: {args.target_radius}\n")
+        f.write(f"  Input use features: {args.input_use_features}\n")
+        f.write(f"  Target use features: {args.target_use_features}\n\n")
+        
+        f.write("MODEL CONFIGURATION:\n")
+        f.write(f"  Hidden size: {args.hidden_size}\n")
+        f.write(f"  Number of layers: {args.num_hidden_layers}\n")
+        f.write(f"  Number of attention heads: {args.num_attention_heads}\n")
+        f.write(f"  Intermediate size: {args.intermediate_size}\n")
+        f.write(f"  Dropout: {args.dropout}\n")
+        f.write(f"  Label smoothing: {args.label_smoothing}\n\n")
+        
+        f.write("MLM CONFIGURATION:\n")
+        f.write(f"  Mask probability: {args.mask_prob}\n")
+        f.write(f"  Replace probability: {args.replace_prob}\n")
+        f.write(f"  Random probability: {args.random_prob}\n")
+        f.write(f"  Max length: {args.max_length or 'No limit'}\n")
+        f.write(f"  Use CLS token: {not args.no_cls_token}\n\n")
+        
+        f.write("TRAINING CONFIGURATION:\n")
+        f.write(f"  Batch size: {args.batch_size}\n")
+        f.write(f"  Learning rate: {args.learning_rate}\n")
+        f.write(f"  Weight decay: {args.weight_decay}\n")
+        f.write(f"  Warmup steps: {args.warmup_steps}\n")
+        f.write(f"  Max epochs: {args.max_epochs}\n")
+        f.write(f"  Max steps: {args.max_steps or 'No limit'}\n")
+        f.write(f"  Validation split: {args.validation_split}\n")
+        f.write(f"  Patience: {args.patience}\n\n")
+        
+        f.write("HARDWARE CONFIGURATION:\n")
+        f.write(f"  GPUs: {args.gpus}\n")
+        f.write(f"  Precision: {args.precision}\n")
+        f.write(f"  Number of workers: {args.num_workers}\n")
+        f.write(f"  Gradient accumulation: {args.accumulate_grad_batches}\n")
+        f.write(f"  Gradient clipping: {args.gradient_clip_val}\n\n")
+        
+        f.write("OUTPUT CONFIGURATION:\n")
+        f.write(f"  Output directory: {output_dir}\n")
+        f.write(f"  Model name: {args.model_name}\n")
+        f.write(f"  Seed: {args.seed}\n")
+        f.write(f"  Debug mode: {args.debug}\n")
+        f.write(f"  Log predictions: {args.log_predictions}\n")
+        f.write(f"  Use torch compile: {args.use_torch_compile}\n")
+
+
 def main():
     """Main training function"""
     args = parse_args()
@@ -328,6 +414,10 @@ def main():
 
     # Create model configuration
     model_config = create_model_config(args)
+    
+    # Save configuration files
+    logger.info("Saving configuration files...")
+    save_config_files(args, model_config, vocab_sizes, output_dir)
 
     # Create model
     logger.info("Creating model...")
@@ -367,9 +457,11 @@ def main():
     # Create callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir / "checkpoints",
-        filename="{epoch:02d}-{step:05d}",
-        save_top_k=-1,  # Save all checkpoints
-        save_last=True,
+        filename="{epoch:02d}-{step:005d}-{val_loss:.4f}",
+        save_top_k=5,  # Save the 5 best checkpoints
+        monitor="val_loss",
+        mode="min",
+        save_last=False,  # Don't save the last checkpoint
         verbose=True,
     )
     lr_monitor = LearningRateMonitor(logging_interval="step")
@@ -445,6 +537,27 @@ def main():
     if args.test_data is not None:
         logger.info("Running test evaluation...")
         trainer.test(model=lightning_model, datamodule=data_module)
+
+    # Log checkpoint information
+    logger.info("Checkpoint summary:")
+    checkpoint_dir = output_dir / "checkpoints"
+    if checkpoint_dir.exists():
+        checkpoint_files = list(checkpoint_dir.glob("*.ckpt"))
+        logger.info(f"Total checkpoints saved: {len(checkpoint_files)}")
+        
+        # Get the best checkpoint info
+        best_checkpoint = trainer.checkpoint_callback.best_model_path
+        best_score = trainer.checkpoint_callback.best_model_score
+        
+        if best_checkpoint and Path(best_checkpoint).exists():
+            logger.info(f"Best checkpoint: {Path(best_checkpoint).name}")
+            logger.info(f"Best validation loss: {best_score:.4f}")
+            
+            # List all saved checkpoints with their scores
+            for i, checkpoint_file in enumerate(sorted(checkpoint_files, key=lambda x: x.name)):
+                logger.info(f"  {i+1}. {checkpoint_file.name}")
+        else:
+            logger.warning("No best checkpoint found")
 
     logger.info("Training completed!")
     logger.info(f"Best model checkpoint: {trainer.checkpoint_callback.best_model_path}")

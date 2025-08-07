@@ -1,5 +1,5 @@
 """
-Training Script for Multi-Task Pretraining Model
+Training Script for Unsupervised Pretraining Model
 
 This script trains a MolE model on multiple tasks simultaneously:
 - Cross-Environment MLM (primary)
@@ -23,9 +23,9 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from mole.data.multitask_datamodule import MultiTaskDataModule
-from mole.models.multitask_model import (
-    MultiTaskModel,
-    MultiTaskLightningModule,
+from mole.models.unsupervised_pretraining_model import (
+    UnsupervisedPretrainingModel,
+    UnsupervisedPretrainingLightningModule,
 )
 from mole.cli.train_crossenv_mlm import (
     get_arg_parser as get_base_parser,
@@ -33,11 +33,11 @@ from mole.cli.train_crossenv_mlm import (
 )
 
 
-def parse_multitask_args():
-    """Parse command line arguments for multi-task training"""
+def parse_unsupervised_pretraining_args():
+    """Parse command line arguments for unsupervised pretraining"""
     parser = get_base_parser()
 
-    # Add new arguments for multi-task learning
+    # Add new arguments for unsupervised pretraining
     parser.add_argument(
         "--mlm_loss_weight",
         type=float,
@@ -51,22 +51,22 @@ def parse_multitask_args():
         help="Weight for the regression loss component.",
     )
     parser.set_defaults(
-        model_name="multitask_model", output_dir="outputs/multitask_pretraining"
+        model_name="unsupervised_pretraining_model", output_dir="outputs/unsupervised_pretraining"
     )
 
     return parser.parse_args()
 
 
 def main():
-    """Main function to run multi-task training"""
-    args = parse_multitask_args()
+    """Main function to run unsupervised pretraining"""
+    args = parse_unsupervised_pretraining_args()
     pl.seed_everything(args.seed, workers=True)
 
     # Setup logging
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s|%(levelname)s|%(message)s"
     )
-    logging.info("Starting multi-task pretraining")
+    logging.info("Starting unsupervised pretraining")
     logging.info(f"Output directory: {args.output_dir}/{args.model_name}")
 
     # Data module setup
@@ -94,7 +94,7 @@ def main():
 
     # Model configuration and instantiation
     model_config = create_model_config(args)
-    model = MultiTaskModel(
+    model = UnsupervisedPretrainingModel(
         deberta_config=model_config,
         input_vocab_size=vocab_sizes["input_vocab_size"],
         target_vocab_size=vocab_sizes["target_vocab_size"],
@@ -103,7 +103,7 @@ def main():
     )
 
     # Lightning module setup
-    lightning_module = MultiTaskLightningModule(
+    lightning_module = UnsupervisedPretrainingLightningModule(
         model=model,
         optimizer_cfg={"lr": args.learning_rate, "weight_decay": args.weight_decay},
         scheduler_cfg={"warmup_steps": args.warmup_steps},

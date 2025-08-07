@@ -33,7 +33,7 @@ default_params = {
     "--learning_rate": "1e-4",
     "--weight_decay": "0.01",
     "--warmup_steps": "5000",
-    "--max_epochs": "30",  # Increased for a more complete run on a single machine
+    "--max_epochs": "5",  # Increased for a more complete run on a single machine
     "--validation_split": "0.05",
     "--val_check_interval": "0.2", # Run validation 5 times per epoch
     # Hardware configuration (Tesla T4 optimized)
@@ -55,7 +55,7 @@ def main():
     """Main function to run the T4-optimized training script."""
     # Build command
     script_path = (
-        Path(__file__).parent.parent / "mole" / "cli" / "train_crossenv_mlm.py"
+        Path(__file__).parent.parent.parent / "mole" / "cli" / "train_crossenv_mlm.py"
     )
     cmd = [sys.executable, str(script_path)]
 

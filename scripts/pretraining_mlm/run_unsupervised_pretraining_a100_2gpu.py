@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Convenience script to run Multi-Task Pretraining on the GuacaMol dataset.
+Convenience script to run Unsupervised Pretraining on the GuacaMol dataset.
 
 This script trains a model on three tasks simultaneously, optimized for two
 NVIDIA A100 (40GB) GPUs:
@@ -17,7 +17,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run Multi-Task Pretraining, optimized for A100 GPUs."
+        description="Run Unsupervised Pretraining, optimized for A100 GPUs."
     )
     parser.add_argument(
         "--gpus",
@@ -70,18 +70,18 @@ def main():
     # Start with A100-optimized parameters
     params = a100_params.copy()
 
-    # Add/override parameters for multi-task learning
-    multitask_params = {
-        "--output_dir": "outputs/guacamol_multitask_a100_2gpu",
-        "--model_name": "guacamol_multitask_a100_2gpu_optimized",
+    # Add/override parameters for unsupervised learning
+    unsupervised_params = {
+        "--output_dir": "outputs/guacamol_unsupervised_pretraining_a100_2gpu",
+        "--model_name": "guacamol_unsupervised_pretraining_a100_2gpu",
         "--mlm_loss_weight": "1.0",
         "--regression_loss_weight": "1.0",  # Adjusted to balance with MLM loss (10^4 scale difference)
     }
-    params.update(multitask_params)
+    params.update(unsupervised_params)
 
     # Build command
     script_path = (
-        Path(__file__).parent.parent / "mole" / "cli" / "train_multitask.py"
+        Path(__file__).parent.parent / "mole" / "cli" / "train_unsupervised_pretraining.py"
     )
     cmd = [sys.executable, str(script_path)]
 
@@ -94,7 +94,7 @@ def main():
     # Add any additional arguments passed to this script
     cmd.extend(remaining_argv)
 
-    print("🚀 Starting MolE Multi-Task Pretraining on GuacaMol Dataset")
+    print("🚀 Starting MolE Unsupervised Pretraining on GuacaMol Dataset")
     print("=" * 70)
     print(f"🎯 GPU: {args.gpus}x NVIDIA A100 (40 GB VRAM) - Optimized Configuration")
     print("🎯 Tasks:")

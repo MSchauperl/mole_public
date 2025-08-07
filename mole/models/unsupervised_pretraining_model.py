@@ -1,7 +1,7 @@
 """
-Multi-Task Model for MolE Pretraining
+Unsupervised Pretraining Model for MolE
 
-This file defines the components for a multi-task model that combines
+This file defines the components for an unsupervised pretraining model that combines
 cross-environment MLM with molecular property prediction.
 """
 
@@ -46,8 +46,8 @@ class RegressionHead(nn.Module):
         return x
 
 
-class MultiTaskModel(CrossEnvMLMModel):
-    """Multi-task model combining MLM and property prediction."""
+class UnsupervisedPretrainingModel(CrossEnvMLMModel):
+    """Unsupervised pretraining model combining MLM and property prediction."""
 
     def __init__(
         self,
@@ -124,12 +124,12 @@ class MultiTaskModel(CrossEnvMLMModel):
         return outputs
 
 
-class MultiTaskLightningModule(CrossEnvMLM):
-    """PyTorch Lightning wrapper for the multi-task model."""
+class UnsupervisedPretrainingLightningModule(CrossEnvMLM):
+    """PyTorch Lightning wrapper for the unsupervised pretraining model."""
 
     def __init__(
         self,
-        model: MultiTaskModel,
+        model: UnsupervisedPretrainingModel,
         optimizer_cfg: Dict[str, Any],
         scheduler_cfg: Optional[Dict[str, Any]] = None,
         log_predictions: bool = False,
@@ -138,10 +138,10 @@ class MultiTaskLightningModule(CrossEnvMLM):
         **kwargs,
     ):
         """
-        Initialize the Lightning module for multi-task training.
+        Initialize the Lightning module for unsupervised pretraining.
 
         Args:
-            model: The MultiTaskModel to be trained.
+            model: The UnsupervisedPretrainingModel to be trained.
             optimizer_cfg: Configuration for the optimizer.
             scheduler_cfg: Configuration for the learning rate scheduler.
             log_predictions: Whether to log MLM prediction examples.
