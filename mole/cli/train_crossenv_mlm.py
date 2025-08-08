@@ -214,6 +214,11 @@ def get_arg_parser():
         default=None,
         help="Path to checkpoint to resume from",
     )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder layers during training (for fine-tuning)",
+    )
 
     # Miscellaneous
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -457,7 +462,7 @@ def main():
     # Create callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath=output_dir / "checkpoints",
-        filename="{epoch:02d}-{step:005d}-{val_loss:.4f}",
+        filename="{epoch:02d}-{step:05d}-{val_loss:.4f}",
         save_top_k=5,  # Save the 5 best checkpoints
         monitor="val_loss",
         mode="min",
@@ -522,6 +527,16 @@ def main():
     logger.info(f"  Model size: ~{total_params * 4 / 1024**2:.1f}MB (float32)")
 
     # Compile model if requested (PyTorch 2.0+)
+    # Handle encoder freezing if requested
+    if args.freeze_encoder:
+        logger.info("Freezing encoder layers for fine-tuning...")
+        if hasattr(lightning_model.model, 'encoder'):
+            for param in lightning_model.model.encoder.parameters():
+                param.requires_grad = False
+            logger.info("Encoder layers frozen.")
+        else:
+            logger.warning("No encoder found in model - cannot freeze encoder")
+
     if args.use_torch_compile:
         lightning_model.compile()
 

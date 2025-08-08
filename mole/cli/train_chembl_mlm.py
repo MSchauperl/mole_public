@@ -148,7 +148,7 @@ def get_arg_parser():
 
     # Training arguments
     parser.add_argument(
-        "--batch_size", type=int, default=32, help="Batch size for training"
+        "--batch_size", type=int, default=16, help="Batch size for training"
     )
     parser.add_argument(
         "--learning_rate", type=float, default=1e-4, help="Learning rate"
@@ -228,6 +228,17 @@ def get_arg_parser():
     )
     parser.add_argument(
         "--model_name", type=str, required=True, help="Model name"
+    )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint to resume training from",
+    )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder layers during training (for fine-tuning)",
     )
 
     # Miscellaneous arguments
@@ -570,9 +581,47 @@ def main():
         log_every_n_steps=50,
     )
 
+    # Handle encoder freezing if requested
+    if args.freeze_encoder:
+        logger.info("Freezing encoder layers for fine-tuning...")
+        if hasattr(lightning_model.model, 'encoder'):
+            for param in lightning_model.model.encoder.parameters():
+                param.requires_grad = False
+            logger.info("Encoder layers frozen.")
+        else:
+            logger.warning("No encoder found in model - cannot freeze encoder")
+
     # Start training
     logger.info("Starting training...")
-    trainer.fit(lightning_model, data_module)
+    if args.resume_from_checkpoint:
+        logger.info(f"Loading pretrained weights from: {args.resume_from_checkpoint}")
+        # Load checkpoint with strict=False to handle missing classification head
+        import torch
+        checkpoint = torch.load(args.resume_from_checkpoint, map_location='cpu')
+        if 'state_dict' in checkpoint:
+            # Filter out keys that don't match (like classification head)
+            model_state_dict = lightning_model.state_dict()
+            filtered_state_dict = {}
+            
+            for key, value in checkpoint['state_dict'].items():
+                if key in model_state_dict and model_state_dict[key].shape == value.shape:
+                    filtered_state_dict[key] = value
+                else:
+                    logger.info(f"Skipping incompatible parameter: {key}")
+            
+            # Load the filtered state dict
+            missing_keys, unexpected_keys = lightning_model.load_state_dict(filtered_state_dict, strict=False)
+            logger.info(f"Loaded checkpoint with {len(filtered_state_dict)} matching layers")
+            if missing_keys:
+                logger.info(f"Missing keys (will be randomly initialized): {len(missing_keys)} layers")
+                for key in missing_keys:
+                    logger.debug(f"  - {key}")
+            if unexpected_keys:
+                logger.info(f"Unexpected keys (ignored): {len(unexpected_keys)} layers")
+        
+        trainer.fit(lightning_model, data_module)
+    else:
+        trainer.fit(lightning_model, data_module)
 
     # Test if test data is available
     if hasattr(data_module, '_test_smiles'):

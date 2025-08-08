@@ -987,10 +987,10 @@ def main():
     # Callbacks
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"{args.output_dir}/{args.model_name}/checkpoints",
-        filename="{epoch}-{val/total_loss:.2f}",
-        monitor="val/total_loss",
+        filename="{epoch:02d}-{step:05d}-{val_loss:.4f}",
+        monitor="val/total_loss",        
         mode="min",
-        save_top_k=3,
+        save_top_k=5,  # Save the 5 best checkpoints
     )
     lr_monitor = LearningRateMonitor(logging_interval="step")
     callbacks = [checkpoint_callback, lr_monitor]

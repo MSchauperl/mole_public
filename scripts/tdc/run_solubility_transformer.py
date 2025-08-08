@@ -692,9 +692,9 @@ def main():
     print("=" * 80)
     
     # Configuration flags
-    FREEZE_ENCODER = True  # Set to True to only train the prediction head, False to train everything
-    GRADUAL_UNFREEZING = True  # Set to True to unfreeze encoder after some epochs
-    UNFREEZE_EPOCH = 15  # Epoch at which to unfreeze encoder (if GRADUAL_UNFREEZING=True)
+    FREEZE_ENCODER = False  # Set to True to only train the prediction head, False to train everything
+    GRADUAL_UNFREEZING = False  # Set to True to unfreeze encoder after some epochs
+    UNFREEZE_EPOCH = 0  # Epoch at which to unfreeze encoder (if GRADUAL_UNFREEZING=True)
     
     print(f"🔧 Configuration:")
     print(f"   FREEZE_ENCODER = {FREEZE_ENCODER}")

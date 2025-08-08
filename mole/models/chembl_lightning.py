@@ -307,6 +307,28 @@ class ChemBLLightningModule(CrossEnvMLM):
         if mask.sum() == 0:
             return
             
+        # Ensure mask has the right shape for 2D indexing
+        # Note: PyTorch Geometric flattens these tensors during batching, so we need to reshape them
+        if mask.dim() == 1:
+            # If mask is 1D, reshape it to match the expected 2D format
+            batch_size = logits.size(0)
+            num_targets = logits.size(1)
+            if mask.numel() == batch_size * num_targets:
+                mask = mask.view(batch_size, num_targets)
+            else:
+                print(f"WARNING: Cannot reshape mask from {mask.shape} to [{batch_size}, {num_targets}]")
+                return
+        
+        # Similarly ensure targets has the right shape
+        if targets.dim() == 1:
+            batch_size = logits.size(0)
+            num_targets = logits.size(1)
+            if targets.numel() == batch_size * num_targets:
+                targets = targets.view(batch_size, num_targets)
+            else:
+                print(f"WARNING: Cannot reshape targets from {targets.shape} to [{batch_size}, {num_targets}]")
+                return
+            
         # Get metrics collection for this split
         if split == 'train':
             metrics = self.train_classification_metrics

@@ -120,6 +120,16 @@ def main():
         regression_loss_weight=args.regression_loss_weight,
     )
 
+    # Handle encoder freezing if requested
+    if args.freeze_encoder:
+        logging.info("Freezing encoder layers for fine-tuning...")
+        if hasattr(lightning_module.model, 'encoder'):
+            for param in lightning_module.model.encoder.parameters():
+                param.requires_grad = False
+            logging.info("Encoder layers frozen.")
+        else:
+            logging.warning("No encoder found in model - cannot freeze encoder")
+
     # Model compilation (if enabled)
     if args.use_torch_compile:
         logging.info("Compiling model with torch.compile()...")

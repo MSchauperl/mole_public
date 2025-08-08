@@ -213,8 +213,8 @@ def train(args: argparse.Namespace):
         monitor=args.checkpoint_monitor,
         mode=args.checkpoint_mode,
         dirpath=os.path.join(args.output_dir, args.model_name, "checkpoints"),
-        filename="{epoch}-{step}-{" + args.checkpoint_monitor + ":.2f}",
-        save_top_k=1,
+        filename="{epoch:02d}-{step:05d}-{" + args.checkpoint_monitor + ":.4f}",
+        save_top_k=5,  # Save the 5 best checkpoints
     )
 
     trainer_args = {

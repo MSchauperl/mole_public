@@ -322,59 +322,103 @@ class TestConfig(ChemBLConfig):
         return config
 
 
-class T4FineTuneConfig(T4Config):
-    """Tesla T4 fine-tuning configuration with frozen encoder."""
+class T4FineTuneConfig(ChemBLConfig):
+    """Tesla T4 fine-tuning configuration that matches cross-environment model architecture."""
     
     def __init__(self):
         super().__init__()
         self.config_name = "t4_finetune"
     
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get T4 fine-tuning configuration with optimized settings."""
-        # Start with base T4 config
-        config = super().get_config()
-        
-        # Fine-tuning specific overrides
+        """Get T4 fine-tuning configuration that matches cross-env architecture."""
+        # Use EXACT architecture from run_crossenv_training_t4.py
         finetune_params = {
             "--output_dir": "outputs/chembl_finetune",
             "--model_name": "chembl_finetune_t4",
+            "--max_targets": "50",
+            "--min_target_activity": "500",
+            # EXACT architecture matching run_crossenv_training_t4.py
+            "--hidden_size": "768",
+            "--num_hidden_layers": "12",
+            "--num_attention_heads": "12",
+            "--intermediate_size": "3072",
+            "--dropout": "0.1",
+            # Environment configuration (same as cross-env)
+            "--input_radius": "0",
+            "--target_radius": "1",
+            "--target_use_features": "",  # Flag for functional environments
+            # Fine-tuning optimized training settings
+            "--batch_size": "4",       # Smaller batch for T4 with large model
             "--learning_rate": "5e-5",  # Lower learning rate for fine-tuning
+            "--weight_decay": "0.01",   # Same as cross-env
             "--warmup_steps": "500",    # Shorter warmup for fine-tuning
             "--max_epochs": "10",       # Fewer epochs for fine-tuning
+            "--val_check_interval": "0.25",
             "--patience": "3",          # More aggressive early stopping
             "--classification_loss_weight": "2.0",  # Higher weight on classification for fine-tuning
             "--mlm_loss_weight": "0.05",  # Lower weight on MLM for fine-tuning
+            "--gpus": "1",
+            "--num_workers": "4",
+            "--precision": "16",
+            "--accumulate_grad_batches": "8",   # Adjusted for batch size 16
+            "--max_length": "256",
+            "--gradient_clip_val": "1.0",
+            "--max_targets_to_log": "20",
+            "--max_samples": "45633",  # 10% for testing
         }
         
-        config.update(finetune_params)
+        config = super().get_config(finetune_params)
         if overrides:
             config.update(overrides)
         return config
 
 
-class T4OnlyFineTuneConfig(T4OnlyConfig):
-    """Tesla T4 ChemBL-only fine-tuning configuration."""
+class T4OnlyFineTuneConfig(ChemBLConfig):
+    """Tesla T4 ChemBL-only fine-tuning configuration that matches cross-environment architecture."""
     
     def __init__(self):
         super().__init__()
         self.config_name = "t4_only_finetune"
     
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get T4 ChemBL-only fine-tuning configuration."""
-        # Start with base T4-only config
-        config = super().get_config()
-        
-        # Fine-tuning specific overrides
+        """Get T4 ChemBL-only fine-tuning configuration that matches cross-env architecture."""
+        # Use EXACT architecture from run_crossenv_training_t4.py
         finetune_params = {
             "--output_dir": "outputs/chembl_only_finetune",
             "--model_name": "chembl_only_finetune_t4",
+            "--max_targets": "50",
+            "--min_target_activity": "2000",
+            # EXACT architecture matching run_crossenv_training_t4.py
+            "--hidden_size": "768",
+            "--num_hidden_layers": "12",
+            "--num_attention_heads": "12",
+            "--intermediate_size": "3072",
+            "--dropout": "0.1",
+            # Environment configuration (same as cross-env)
+            "--input_radius": "0",
+            "--target_radius": "1",
+            "--target_use_features": "",  # Flag for functional environments
+            # ChemBL-only fine-tuning settings
+            "--batch_size": "8",       # Can be larger without MLM
             "--learning_rate": "2e-5",  # Lower learning rate for fine-tuning
+            "--weight_decay": "0.01",   # Same as cross-env
             "--warmup_steps": "200",    # Shorter warmup
             "--max_epochs": "8",        # Fewer epochs
+            "--val_check_interval": "0.25",
             "--patience": "2",          # More aggressive early stopping
+            "--chembl_only": "",        # Enable ChemBL-only mode
+            "--classification_loss_weight": "1.0",
+            "--gpus": "1",
+            "--num_workers": "4",
+            "--precision": "16",
+            "--accumulate_grad_batches": "4",  # Adjusted for larger batch size
+            "--max_length": "256",
+            "--gradient_clip_val": "1.0",
+            "--max_targets_to_log": "20",
+            "--max_samples": "45633",  # 10% for testing
         }
         
-        config.update(finetune_params)
+        config = super().get_config(finetune_params)
         if overrides:
             config.update(overrides)
         return config
@@ -503,14 +547,20 @@ class FilteredChemBLOnlyConfig(FilteredChemBLConfig):
         chembl_only_params = {
             "--output_dir": "outputs/chembl_filtered_only",
             "--model_name": "chembl_filtered_only_t4",
-            "--batch_size": "32",  # Can use even larger batch without MLM
-            "--learning_rate": "2e-4",
+            "--batch_size": "16",  # Can use even larger batch without MLM
+            "--learning_rate": "1e-4",
             "--warmup_steps": "1000",
             "--max_epochs": "30",
             "--patience": "5",
             "--chembl_only": "",  # Enable ChemBL-only mode
             "--classification_loss_weight": "1.0",
-            "--accumulate_grad_batches": "2",
+            "--accumulate_grad_batches": "8",
+            "--hidden_size": "768",  # Can be larger without MLM
+            "--num_hidden_layers": "8",
+            "--num_attention_heads": "12",
+            "--intermediate_size": "2048",
+            "--val_check_interval": "0.25",
+
         }
         
         config.update(chembl_only_params)
