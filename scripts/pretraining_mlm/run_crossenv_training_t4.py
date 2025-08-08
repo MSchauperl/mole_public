@@ -30,7 +30,7 @@ default_params = {
     "--target_use_features": "",  # Flag for functional environments
     # Training configuration (Tesla T4 optimized)
     "--batch_size": "32",  # Reduced from 256 for T4
-    "--learning_rate": "1e-4",
+    "--learning_rate": "5e-4",
     "--weight_decay": "0.01",
     "--warmup_steps": "5000",
     "--max_epochs": "5",  # Increased for a more complete run on a single machine

@@ -31,10 +31,10 @@ default_params = {
     "--target_use_features": "",  # Flag for functional environments
     # Training configuration (NVIDIA A100 optimized for ~1.6M molecules)
     "--batch_size": "128",  # Increased from 32 for A100
-    "--learning_rate": "1e-4",  # Keep same learning rate
+    "--learning_rate": "5e-4",  # Keep same learning rate
     "--weight_decay": "0.01",
     "--warmup_steps": "5000",  # Adjusted for dataset size
-    "--max_epochs": "1",
+    "--max_epochs": "100",
     "--validation_split": "0.05",
     "--val_check_interval": "0.25",  # Validate twice per epoch
     # Hardware configuration (NVIDIA A100 optimized)

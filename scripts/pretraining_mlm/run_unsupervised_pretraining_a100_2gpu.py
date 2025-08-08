@@ -72,8 +72,8 @@ def main():
 
     # Add/override parameters for unsupervised learning
     unsupervised_params = {
-        "--output_dir": "outputs/guacamol_unsupervised_pretraining_a100_2gpu",
-        "--model_name": "guacamol_unsupervised_pretraining_a100_2gpu",
+        "--output_dir": "outputs/guacamol_unsupervised_pretraining_a100_1gpu",
+        "--model_name": "guacamol_unsupervised_pretraining_a100_1gpu",
         "--mlm_loss_weight": "1.0",
         "--regression_loss_weight": "0.2",  # Adjusted to balance with MLM loss (10^4 scale difference)
     }
