@@ -10,3 +10,5 @@
 outputs/
 *.pth
 data/ChemBl/
+data/admet_group/
+data/admet_group.zip

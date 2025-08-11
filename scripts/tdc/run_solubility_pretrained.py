@@ -9,7 +9,15 @@ training and fine-tune it for solubility prediction.
 import sys
 import os
 import torch
+import argparse
 from pathlib import Path
+
+# Suppress RDKit warnings about hydrogen atoms
+import warnings
+from rdkit import rdBase
+rdBase.DisableLog('rdApp.warning')
+warnings.filterwarnings('ignore', category=UserWarning, module='rdkit')
+
 from solubility_pretrained_transformer import (
     load_solubility_data,
     preprocess_solubility_data,
@@ -22,8 +30,74 @@ from solubility_pretrained_transformer import (
 )
 
 
+def parse_args():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Molecular solubility prediction using pretrained MolE Transformer",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default="/home/mschauperl/mole_bucket/outputs/guacamol_crossenv_mlm/guacamol_r0_to_r1_functional_a100_optimized/checkpoints/epoch=11-step=66442-val_loss=2.6733.ckpt",
+        help="Path to pretrained MolE checkpoint"
+    )
+    parser.add_argument(
+        "--input_vocab",
+        type=str,
+        default="mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
+        help="Path to input vocabulary"
+    )
+    parser.add_argument(
+        "--target_vocab",
+        type=str,
+        default="mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
+        help="Path to target vocabulary"
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=30,
+        help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=16,
+        help="Batch size for training"
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-4,
+        help="Learning rate"
+    )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder during initial training phase"
+    )
+    parser.add_argument(
+        "--freeze_epochs",
+        type=int,
+        default=5,
+        help="Number of epochs to keep encoder frozen (only used if --freeze_encoder is set)"
+    )
+    parser.add_argument(
+        "--encoder_lr_ratio",
+        type=float,
+        default=0.1,
+        help="Learning rate ratio for encoder relative to prediction head when unfrozen"
+    )
+    
+    return parser.parse_args()
+
+
 def main():
     """Main execution function"""
+    args = parse_args()
+    
     print("🧪 MOLECULAR SOLUBILITY PREDICTION WITH PRETRAINED MOLECULAR TRANSFORMER")
     print("=" * 80)
     
@@ -33,18 +107,28 @@ def main():
     if device == 'cuda':
         print(f"GPU: {torch.cuda.get_device_name()}")
     
-    # Define paths
-    checkpoint_path = "/home/mschauperl/mole_public/outputs/guacamol_crossenv_mlm/guacamol_r0_to_r1_functional_t4_optimized/checkpoints/epoch=03-step=00000000000000000000000000000000000000000000000113-val_loss=3.3236.ckpt"
-    input_vocab_path = "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl"
-    target_vocab_path = "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl"
+    # Print configuration
+    print(f"📁 Checkpoint: {args.checkpoint_path}")
+    print(f"📚 Input vocab: {args.input_vocab}")
+    print(f"📚 Target vocab: {args.target_vocab}")
+    print(f"🔧 Training epochs: {args.epochs}")
+    print(f"🔧 Batch size: {args.batch_size}")
+    print(f"🔧 Learning rate: {args.learning_rate}")
+    
+    if args.freeze_encoder:
+        print(f"🧊 Encoder freezing: ON (first {args.freeze_epochs} epochs)")
+        print(f"🧊 Encoder LR ratio: {args.encoder_lr_ratio} (when unfrozen)")
+    else:
+        print("🔥 Encoder freezing: OFF (full fine-tuning)")
+    print()
     
     # Check if checkpoint exists
-    if not os.path.exists(checkpoint_path):
-        print(f"❌ Checkpoint not found: {checkpoint_path}")
+    if not os.path.exists(args.checkpoint_path):
+        print(f"❌ Checkpoint not found: {args.checkpoint_path}")
         print("Please ensure the checkpoint file exists and the path is correct.")
         return
     
-    print(f"✅ Found checkpoint: {checkpoint_path}")
+    print(f"✅ Found checkpoint: {args.checkpoint_path}")
     
     # Step 1: Load data
     print("\n1. Loading solubility dataset...")
@@ -61,17 +145,17 @@ def main():
     
     # Step 3: Load pretrained model
     fine_tuned_model, input_vocab, target_vocab = load_pretrained_model(
-        checkpoint_path=checkpoint_path,
-        input_vocab_path=input_vocab_path,
-        target_vocab_path=target_vocab_path
+        checkpoint_path=args.checkpoint_path,
+        input_vocab_path=args.input_vocab,
+        target_vocab_path=args.target_vocab
     )
     
     # Step 4: Create datasets
     train_dataset, test_dataset, scaler, data_module = create_solubility_datasets(
         train_subset=train_subset,
         test_subset=test_subset,
-        input_vocab_path=input_vocab_path,
-        target_vocab_path=target_vocab_path,
+        input_vocab_path=args.input_vocab,
+        target_vocab_path=args.target_vocab,
         target_col='Y'
     )
     
@@ -81,9 +165,12 @@ def main():
         train_dataset=train_dataset,
         test_dataset=test_dataset,
         data_module=data_module,
-        epochs=30,
-        batch_size=16,
-        learning_rate=1e-4,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        freeze_encoder=args.freeze_encoder,
+        freeze_epochs=args.freeze_epochs,
+        encoder_lr_ratio=args.encoder_lr_ratio,
         device=device
     )
     
@@ -130,8 +217,18 @@ def main():
     print(f"\n🔬 PRETRAINING DETAILS:")
     print(f"  • Pretrained on GuacaMol dataset (~1.6M molecules)")
     print(f"  • Cross-environment MLM task: Radius 0 → Radius 1")
-    print(f"  • Checkpoint: epoch=06-step=00209.ckpt")
+    print(f"  • Checkpoint: {Path(args.checkpoint_path).name}")
     print(f"  • Fine-tuned for solubility regression")
+    
+    if args.freeze_encoder:
+        print(f"\n🧊 ENCODER FREEZING STRATEGY:")
+        print(f"  • Phase 1 (epochs 1-{args.freeze_epochs}): Encoder frozen, train prediction head only")
+        print(f"  • Phase 2 (epochs {args.freeze_epochs+1}-{args.epochs}): Encoder unfrozen with {args.encoder_lr_ratio}x learning rate")
+        print(f"  • Benefits: Faster convergence, prevents catastrophic forgetting")
+    else:
+        print(f"\n🔥 FULL FINE-TUNING:")
+        print(f"  • All parameters trainable from start")
+        print(f"  • Single learning rate for entire model")
     
     print(f"\n💡 NEXT STEPS:")
     print(f"  • Check the generated CSV files for detailed predictions")

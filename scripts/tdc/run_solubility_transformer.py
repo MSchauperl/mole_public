@@ -4,10 +4,12 @@ Main script to run solubility prediction using MolE Transformer model.
 
 This script demonstrates how to use the MolE Transformer model
 for predicting molecular solubility from SMILES strings.
+Supports both training from scratch and loading pretrained weights.
 """
 
 import sys
 import os
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -16,7 +18,8 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import RobustScaler
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+import pickle
 
 # Import MolE components
 from mole.models.embeddings import AtomEnvEmbeddings
@@ -91,7 +94,7 @@ class SolubilityPredictionHead(nn.Module):
 
 
 class MolESolubilityModel(nn.Module):
-    """MolE model for solubility prediction (trained from scratch)"""
+    """MolE model for solubility prediction (supports pretrained weights)"""
     
     def __init__(self, config, hidden_size: int = 768, dropout: float = 0.1, freeze_encoder: bool = False):
         super().__init__()
@@ -114,6 +117,72 @@ class MolESolubilityModel(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = True
         print("✅ Encoder parameters unfrozen for fine-tuning")
+    
+    def load_pretrained_weights(self, checkpoint_path: str, strict: bool = False) -> Dict[str, Any]:
+        """
+        Load pretrained weights from a checkpoint
+        
+        Args:
+            checkpoint_path: Path to the pretrained checkpoint
+            strict: Whether to strictly enforce that the keys match
+            
+        Returns:
+            Dictionary with loading statistics
+        """
+        print(f"🔄 Loading pretrained weights from: {checkpoint_path}")
+        
+        # Load checkpoint
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        
+        # Extract state dict
+        if 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        else:
+            state_dict = checkpoint
+        
+        # Filter state dict to only include encoder parameters
+        model_state_dict = self.state_dict()
+        filtered_state_dict = {}
+        
+        loaded_keys = []
+        missing_keys = []
+        unexpected_keys = []
+        
+        for key, value in state_dict.items():
+            # Remove 'model.' prefix if it exists (common in Lightning checkpoints)
+            clean_key = key.replace('model.', '') if key.startswith('model.') else key
+            
+            if clean_key in model_state_dict:
+                if model_state_dict[clean_key].shape == value.shape:
+                    filtered_state_dict[clean_key] = value
+                    loaded_keys.append(clean_key)
+                else:
+                    print(f"⚠️  Shape mismatch for {clean_key}: expected {model_state_dict[clean_key].shape}, got {value.shape}")
+                    missing_keys.append(clean_key)
+            else:
+                unexpected_keys.append(key)
+        
+        # Load the filtered state dict
+        missing_keys_final, unexpected_keys_final = self.load_state_dict(filtered_state_dict, strict=False)
+        
+        # Combine missing keys
+        all_missing = missing_keys + list(missing_keys_final)
+        
+        print(f"✅ Loaded {len(loaded_keys)} pretrained parameters")
+        print(f"   → Encoder parameters: {len([k for k in loaded_keys if 'encoder' in k])}")
+        print(f"   → Head parameters: {len([k for k in loaded_keys if 'solubility_head' in k])}")
+        
+        if all_missing:
+            print(f"⚠️  Missing keys: {len(all_missing)}")
+        if unexpected_keys:
+            print(f"⚠️  Unexpected keys: {len(unexpected_keys)}")
+        
+        return {
+            'loaded_keys': loaded_keys,
+            'missing_keys': all_missing,
+            'unexpected_keys': unexpected_keys,
+            'total_loaded': len(loaded_keys)
+        }
     
     def forward(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
@@ -401,9 +470,10 @@ def collate_fn(batch):
 def train_mole_model(model, train_dataset, test_dataset, data_module,
                     epochs=30, batch_size=16, learning_rate=1e-4,
                     device='cuda' if torch.cuda.is_available() else 'cpu',
-                    unfreeze_encoder_epoch=None):
-    """Train the MolE model from scratch"""
-    print(f"\n6. Training MolE model from scratch on {device}...")
+                    unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1):
+    """Train the MolE model (from scratch or with pretrained weights)"""
+    training_type = "fine-tuning" if unfreeze_encoder_epoch is not None else "from scratch"
+    print(f"\n6. Training MolE model ({training_type}) on {device}...")
     
     if unfreeze_encoder_epoch is not None:
         print(f"   → Encoder will be unfrozen at epoch {unfreeze_encoder_epoch}")
@@ -429,10 +499,24 @@ def train_mole_model(model, train_dataset, test_dataset, data_module,
         # Unfreeze encoder if specified
         if unfreeze_encoder_epoch is not None and epoch == unfreeze_encoder_epoch:
             model._unfreeze_encoder()
-            # Reduce learning rate for fine-tuning
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = learning_rate * 0.1
-            print(f"   → Learning rate reduced to {learning_rate * 0.1:.2e} for fine-tuning")
+            
+            # Set up differential learning rates
+            encoder_lr = learning_rate * encoder_lr_ratio
+            head_lr = learning_rate
+            
+            # Update optimizer with different learning rates for encoder and head
+            param_groups = []
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    if 'encoder' in name:
+                        param_groups.append({'params': param, 'lr': encoder_lr})
+                    else:
+                        param_groups.append({'params': param, 'lr': head_lr})
+            
+            optimizer = optim.AdamW(param_groups, weight_decay=1e-5)
+            print(f"   → Encoder unfrozen with differential learning rates:")
+            print(f"     - Encoder LR: {encoder_lr:.2e}")
+            print(f"     - Head LR: {head_lr:.2e}")
         
         # Training phase
         model.train()
@@ -675,34 +759,132 @@ def print_model_features(model_name, model_type):
     print(f"  ✅ Optimized hyperparameters for {model_name}")
 
 
-def print_success_message(model_name, model_type):
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description="Molecular solubility prediction using MolE Transformer model",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    # Pretrained model arguments
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default=None,
+        help="Path to pretrained MolE checkpoint (optional)"
+    )
+    parser.add_argument(
+        "--input_vocab",
+        type=str,
+        default="mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
+        help="Path to input vocabulary"
+    )
+    parser.add_argument(
+        "--target_vocab",
+        type=str,
+        default="mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
+        help="Path to target vocabulary"
+    )
+    
+    # Training arguments
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=30,
+        help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=8,
+        help="Batch size for training"
+    )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-4,
+        help="Learning rate"
+    )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder during initial training phase"
+    )
+    parser.add_argument(
+        "--freeze_epochs",
+        type=int,
+        default=10,
+        help="Number of epochs to keep encoder frozen (only used if --freeze_encoder is set)"
+    )
+    parser.add_argument(
+        "--encoder_lr_ratio",
+        type=float,
+        default=0.1,
+        help="Learning rate ratio for encoder relative to prediction head when unfrozen"
+    )
+    
+    # Model arguments
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=768,
+        help="Hidden size for transformer"
+    )
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.1,
+        help="Dropout probability"
+    )
+    
+    return parser.parse_args()
+
+
+def print_success_message(model_name, model_type, use_pretrained=False):
     """Print success message with model details"""
     print(f"\n🎉 SUCCESS! {model_type} model trained on solubility data")
     print(f"The system successfully:")
     print(f"  ✅ Used MolE atom environment tokenization")
     print(f"  ✅ Used {model_type} for molecular property prediction")
-    print(f"  ✅ Trained from scratch with DeBERTa architecture")
+    
+    if use_pretrained:
+        print(f"  ✅ Loaded pretrained weights for transfer learning")
+        print(f"  ✅ Fine-tuned with DeBERTa architecture")
+    else:
+        print(f"  ✅ Trained from scratch with DeBERTa architecture")
+    
     print(f"  ✅ Applied transformer attention mechanisms")
     print(f"  ✅ Generated solubility predictions with dedicated head")
 
 
 def main():
     """Main execution function"""
+    # Parse command-line arguments
+    args = parse_args()
+    
     print("🧪 MOLECULAR SOLUBILITY PREDICTION WITH MOLECULAR ENVIRONMENT TRANSFORMER")
     print("=" * 80)
     
-    # Configuration flags
-    FREEZE_ENCODER = False  # Set to True to only train the prediction head, False to train everything
-    GRADUAL_UNFREEZING = False  # Set to True to unfreeze encoder after some epochs
-    UNFREEZE_EPOCH = 0  # Epoch at which to unfreeze encoder (if GRADUAL_UNFREEZING=True)
+    # Configuration based on arguments
+    FREEZE_ENCODER = args.freeze_encoder
+    GRADUAL_UNFREEZING = args.freeze_encoder  # Enable gradual unfreezing if encoder freezing is enabled
+    UNFREEZE_EPOCH = args.freeze_epochs
     
     print(f"🔧 Configuration:")
+    print(f"   Checkpoint path: {args.checkpoint_path or 'None (training from scratch)'}")
     print(f"   FREEZE_ENCODER = {FREEZE_ENCODER}")
     print(f"   GRADUAL_UNFREEZING = {GRADUAL_UNFREEZING}")
+    print(f"   Epochs: {args.epochs}")
+    print(f"   Batch size: {args.batch_size}")
+    print(f"   Learning rate: {args.learning_rate}")
+    print(f"   Hidden size: {args.hidden_size}")
+    print(f"   Dropout: {args.dropout}")
+    
     if FREEZE_ENCODER:
         print("   → Only prediction head parameters will be trained initially")
         if GRADUAL_UNFREEZING:
             print(f"   → Encoder will be unfrozen at epoch {UNFREEZE_EPOCH}")
+            print(f"   → Encoder LR ratio: {args.encoder_lr_ratio}")
         else:
             print("   → Encoder parameters will remain frozen")
     else:
@@ -714,9 +896,9 @@ def main():
     if device == 'cuda':
         print(f"GPU: {torch.cuda.get_device_name()}")
     
-    # Define vocabulary paths (same as pretrained model)
-    input_vocab_path = "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl"
-    target_vocab_path = "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl"
+    # Use vocabulary paths from arguments
+    input_vocab_path = args.input_vocab
+    target_vocab_path = args.target_vocab
     
     # Step 1: Load data
     print("\n1. Loading solubility dataset...")
@@ -745,9 +927,21 @@ def main():
         train_subset, test_subset, input_vocab_path, target_vocab_path, target_col='Y'
     )
     
-    # Step 5: Create and train MolE model
+    # Step 5: Create MolE model
     print("\n5. Creating MolE model...")
-    model = MolESolubilityModel(config, freeze_encoder=FREEZE_ENCODER)
+    model = MolESolubilityModel(config, hidden_size=args.hidden_size, dropout=args.dropout, freeze_encoder=FREEZE_ENCODER)
+    
+    # Load pretrained weights if checkpoint path is provided
+    use_pretrained = False
+    if args.checkpoint_path:
+        if os.path.exists(args.checkpoint_path):
+            loading_stats = model.load_pretrained_weights(args.checkpoint_path)
+            use_pretrained = True
+            print(f"✅ Successfully loaded pretrained weights")
+            print(f"   → Total loaded parameters: {loading_stats['total_loaded']}")
+        else:
+            print(f"⚠️  Checkpoint not found: {args.checkpoint_path}")
+            print("   → Proceeding with training from scratch")
     
     # Enable gradient checkpointing to save memory
     if hasattr(model.encoder, 'gradient_checkpointing_enable'):
@@ -763,6 +957,11 @@ def main():
     print(f"   → {trainable_params:,} trainable parameters")
     print(f"   → {frozen_params:,} frozen parameters")
     
+    if use_pretrained:
+        print(f"   → Using pretrained weights for transfer learning")
+    else:
+        print(f"   → Training from scratch")
+    
     # Step 6: Train model
     unfreeze_epoch = UNFREEZE_EPOCH if (FREEZE_ENCODER and GRADUAL_UNFREEZING) else None
     model = train_mole_model(
@@ -770,11 +969,12 @@ def main():
         train_dataset=train_dataset,
         test_dataset=test_dataset,
         data_module=data_module,
-        epochs=30,
-        batch_size=8,  # Reduced batch size to fit in GPU memory
-        learning_rate=1e-4,
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
         device=device,
-        unfreeze_encoder_epoch=unfreeze_epoch
+        unfreeze_encoder_epoch=unfreeze_epoch,
+        encoder_lr_ratio=args.encoder_lr_ratio
     )
     
     # Step 7: Evaluate model
@@ -791,15 +991,18 @@ def main():
     
     # Step 8: Print model features and success message
     print_model_features("MolESolubility", "MolE")
-    print_success_message("MolESolubility", "MolE")
+    print_success_message("MolESolubility", "MolE", use_pretrained=use_pretrained)
     
     # Step 9: Print final results summary
     print(f"\n📊 FINAL RESULTS SUMMARY:")
     print(f"  Model: MolESolubility")
     print(f"  Architecture: 12-layer DeBERTa Transformer")
     print(f"  Attention Heads: 12")
-    print(f"  Hidden Dimension: 768")
+    print(f"  Hidden Dimension: {args.hidden_size}")
     print(f"  Vocabulary Size: {config.vocab_size}")
+    print(f"  Pretrained Weights: {'Yes' if use_pretrained else 'No'}")
+    if use_pretrained:
+        print(f"  Checkpoint: {args.checkpoint_path}")
     print(f"  Training Samples: {results['n_train']}")
     print(f"  Test Samples: {results['n_test']}")
     print(f"  Test MAE: {results['test_mae']:.3f}")

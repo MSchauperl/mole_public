@@ -450,9 +450,17 @@ def collate_fn(batch):
 
 def train_fine_tuned_model(model, train_dataset, test_dataset, data_module,
                           epochs=30, batch_size=16, learning_rate=1e-4,
+                          freeze_encoder=False, freeze_epochs=5, encoder_lr_ratio=0.1,
                           device='cuda' if torch.cuda.is_available() else 'cpu'):
-    """Train the fine-tuned model"""
+    """Train the fine-tuned model with optional encoder freezing"""
     print(f"\n6. Training fine-tuned model on {device}...")
+    
+    if freeze_encoder:
+        print(f"🧊 Encoder freezing strategy:")
+        print(f"   • Epochs 1-{freeze_epochs}: Encoder FROZEN, train prediction head only")
+        print(f"   • Epochs {freeze_epochs+1}-{epochs}: Encoder UNFROZEN with {encoder_lr_ratio}x learning rate")
+    else:
+        print("🔥 Full fine-tuning: All parameters trainable from start")
     
     # Create data loaders with custom collate function
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
@@ -461,17 +469,87 @@ def train_fine_tuned_model(model, train_dataset, test_dataset, data_module,
     # Move model to device
     model = model.to(device)
     
-    # Loss function and optimizer
+    # Loss function
     criterion = nn.MSELoss()
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+    
+    # Initialize optimizer and scheduler (will be updated each epoch based on freezing strategy)
+    optimizer = None
+    scheduler = None
     
     # Training loop
     best_test_loss = float('inf')
     patience_counter = 0
     patience = 10
     
+    def setup_optimizer_for_epoch(epoch):
+        """Setup optimizer based on freezing strategy"""
+        if freeze_encoder and epoch < freeze_epochs:
+            # Phase 1: Freeze encoder, train only prediction head
+            encoder_param_count = 0
+            head_param_count = 0
+            
+            for name, param in model.named_parameters():
+                if 'encoder' in name:  # Freeze encoder parameters
+                    param.requires_grad = False
+                    encoder_param_count += param.numel()
+                else:  # Keep prediction head trainable
+                    param.requires_grad = True
+                    head_param_count += param.numel()
+            
+            # Only optimize prediction head parameters
+            trainable_params = [p for p in model.parameters() if p.requires_grad]
+            optimizer = optim.AdamW(trainable_params, lr=learning_rate, weight_decay=1e-5)
+            
+            if epoch == 0:
+                print(f"🧊 Epoch {epoch+1}: Encoder FROZEN ({encoder_param_count:,} params), training prediction head ({head_param_count:,} params)")
+                
+                # Debug: Show first few parameter names for verification
+                print("📋 Parameter categorization:")
+                for name, param in model.named_parameters():
+                    category = "ENCODER (frozen)" if 'encoder' in name else "HEAD (trainable)"
+                    print(f"   {name}: {category} ({param.numel():,} params)")
+                print()
+        else:
+            # Phase 2: Unfreeze encoder, use different learning rates
+            for param in model.parameters():
+                param.requires_grad = True
+            
+            if freeze_encoder:
+                # Differential learning rates: lower for encoder, higher for prediction head
+                encoder_params = []
+                head_params = []
+                encoder_param_count = 0
+                head_param_count = 0
+                
+                for name, param in model.named_parameters():
+                    if 'encoder' in name:
+                        encoder_params.append(param)
+                        encoder_param_count += param.numel()
+                    else:
+                        head_params.append(param)
+                        head_param_count += param.numel()
+                
+                optimizer = optim.AdamW([
+                    {'params': encoder_params, 'lr': learning_rate * encoder_lr_ratio},
+                    {'params': head_params, 'lr': learning_rate}
+                ], weight_decay=1e-5)
+                
+                if epoch == freeze_epochs:
+                    print(f"🔥 Epoch {epoch+1}: Encoder UNFROZEN ({encoder_param_count:,} params, LR={learning_rate * encoder_lr_ratio:.2e}), Head ({head_param_count:,} params, LR={learning_rate:.2e})")
+            else:
+                # Standard fine-tuning: same learning rate for all parameters
+                optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+                
+                if epoch == 0:
+                    print(f"🔥 Epoch {epoch+1}: Full fine-tuning with LR={learning_rate:.2e}")
+        
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+        return optimizer, scheduler
+
     for epoch in range(epochs):
+        # Setup optimizer based on current epoch and freezing strategy
+        optimizer, scheduler = setup_optimizer_for_epoch(epoch)
+        
         # Training phase
         model.train()
         train_loss = 0.0
