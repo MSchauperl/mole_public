@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Main script to run solubility prediction using MolE Transformer model.
+Main script to run ADMET property prediction using MolE Transformer model.
 
 This script demonstrates how to use the MolE Transformer model
-for predicting molecular solubility from SMILES strings.
+for predicting various ADMET properties from SMILES strings.
 Supports both training from scratch and loading pretrained weights.
+Handles both regression and classification tasks.
 """
 
 import sys
@@ -16,10 +17,20 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_absolute_error, mean_squared_error, r2_score,
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, average_precision_score
+)
 from sklearn.preprocessing import RobustScaler
 from typing import List, Optional, Dict, Any
 import pickle
+
+# Suppress RDKit warnings about hydrogen atoms
+import warnings
+from rdkit import rdBase
+rdBase.DisableLog('rdApp.warning')
+warnings.filterwarnings('ignore', category=UserWarning, module='rdkit')
 
 # Import MolE components
 from mole.models.embeddings import AtomEnvEmbeddings
@@ -27,27 +38,34 @@ from mole.models.crossenv_mlm import CrossEnvMLMModel
 from mole.data.crossenv_datamodule import CrossEnvDataModule
 from mole.data.crossenv_dataset import CrossEnvMolDataset
 
-# Import TDC for solubility dataset
+# Import TDC for ADMET datasets
 try:
-    from tdc.single_pred import ADME
+    from tdc.benchmark_group import admet_group
     tdc_available = True
 except ImportError:
     tdc_available = False
 
 
-class SolubilityPredictionHead(nn.Module):
-    """Solubility prediction head for MolE model"""
+class ADMETPredictionHead(nn.Module):
+    """ADMET prediction head for MolE model (supports both regression and classification)"""
     
-    def __init__(self, hidden_size: int = 768, dropout: float = 0.1):
+    def __init__(self, hidden_size: int = 768, dropout: float = 0.1, task_type: str = "regression"):
         super().__init__()
-        self.solubility_head = nn.Sequential(
+        self.task_type = task_type
+        
+        if task_type == "regression":
+            output_size = 1
+        else:  # classification
+            output_size = 2  # Binary classification
+            
+        self.admet_head = nn.Sequential(
             nn.Linear(hidden_size, hidden_size // 2),
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_size // 2, hidden_size // 4),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(hidden_size // 4, 1)
+            nn.Linear(hidden_size // 4, output_size)
         )
         self._init_weights()
     
@@ -61,14 +79,14 @@ class SolubilityPredictionHead(nn.Module):
     
     def forward(self, hidden_states: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
-        Forward pass for solubility prediction
+        Forward pass for ADMET prediction
         
         Args:
             hidden_states: Output from transformer encoder [batch_size, seq_len, hidden_size]
             attention_mask: Attention mask for padding [batch_size, seq_len]
         
         Returns:
-            Solubility predictions [batch_size]
+            ADMET predictions [batch_size] for regression or [batch_size, 2] for classification
         """
         # Global average pooling over sequence dimension
         if attention_mask is not None:
@@ -88,19 +106,24 @@ class SolubilityPredictionHead(nn.Module):
             # Simple average pooling
             pooled = hidden_states.mean(dim=1)
         
-        # Predict solubility
-        solubility = self.solubility_head(pooled)
-        return solubility.squeeze(-1)
+        # Predict ADMET property
+        output = self.admet_head(pooled)
+        
+        if self.task_type == "regression":
+            return output.squeeze(-1)  # [batch_size]
+        else:
+            return output  # [batch_size, 2]
 
 
-class MolESolubilityModel(nn.Module):
-    """MolE model for solubility prediction (supports pretrained weights)"""
+class MolEADMETModel(nn.Module):
+    """MolE model for ADMET property prediction (supports pretrained weights)"""
     
-    def __init__(self, config, hidden_size: int = 768, dropout: float = 0.1, freeze_encoder: bool = False):
+    def __init__(self, config, hidden_size: int = 768, dropout: float = 0.1, task_type: str = "regression", freeze_encoder: bool = False):
         super().__init__()
         # Create encoder with same architecture as pretrained model
         self.encoder = AtomEnvEmbeddings(config)
-        self.solubility_head = SolubilityPredictionHead(hidden_size, dropout)
+        self.admet_head = ADMETPredictionHead(hidden_size, dropout, task_type)
+        self.task_type = task_type
         
         # Optionally freeze encoder parameters
         if freeze_encoder:
@@ -171,7 +194,7 @@ class MolESolubilityModel(nn.Module):
         # Count actual parameter values (not just keys)
         total_loaded_params = sum(value.numel() for value in filtered_state_dict.values())
         encoder_params = sum(value.numel() for key, value in filtered_state_dict.items() if 'encoder' in key)
-        head_params = sum(value.numel() for key, value in filtered_state_dict.items() if 'solubility_head' in key)
+        head_params = sum(value.numel() for key, value in filtered_state_dict.items() if 'admet_head' in key)
         
         print(f"✅ Loaded {len(loaded_keys)} parameter layers")
         print(f"   → Total parameter values: {total_loaded_params:,}")
@@ -211,7 +234,7 @@ class MolESolubilityModel(nn.Module):
             attention_mask: Attention mask [batch_size, seq_len]
         
         Returns:
-            Solubility predictions [batch_size]
+            ADMET predictions [batch_size] for regression or [batch_size, 2] for classification
         """
         # Get encoder outputs
         encoder_outputs = self.encoder(
@@ -232,18 +255,19 @@ class MolESolubilityModel(nn.Module):
             # If we got [seq_len, hidden_size], we need to add batch dimension
             hidden_states = hidden_states.unsqueeze(0)  # [1, seq_len, hidden_size]
         
-        # Predict solubility
-        solubility = self.solubility_head(hidden_states, attention_mask)
-        return solubility
+        # Predict ADMET property
+        predictions = self.admet_head(hidden_states, attention_mask)
+        return predictions
 
 
-class SMILESDataset(Dataset):
-    """Dataset for SMILES strings and solubility labels using MolE tokenization"""
+class ADMETDataset(Dataset):
+    """Dataset for ADMET properties with MolE tokenization"""
     
-    def __init__(self, smiles_list: List[str], labels: List[float], data_module: CrossEnvDataModule):
+    def __init__(self, smiles_list: List[str], labels: List[float], data_module: CrossEnvDataModule, task_type: str = "regression"):
         self.smiles_list = smiles_list
         self.labels = labels
         self.data_module = data_module
+        self.task_type = task_type
         
         # Create a CrossEnvMolDataset for proper tokenization
         smiles_series = pd.Series(smiles_list)
@@ -280,31 +304,20 @@ class SMILESDataset(Dataset):
         }
 
 
-# def load_solubility_data():
-#     """Load TDC AqSolDB solubility dataset with proper train/validation/test split"""
-#     if not tdc_available:
-#         print("TDC not available. Install with: pip install PyTDC")
-#         return None, None, None
+def detect_task_type(labels: np.ndarray) -> str:
+    """Detect if the task is regression or classification based on label values"""
+    unique_values = np.unique(labels)
     
-#     print("Loading TDC AqSolDB solubility dataset...")
-#     data = ADME(name='Solubility_AqSolDB')
-#     split = data.get_split()
-    
-#     # Use original splits: train for training, valid for validation, test for final evaluation
-#     train_data = split['train']
-#     valid_data = split['valid'] 
-#     test_data = split['test']
-    
-#     print(f"Training set: {len(train_data)} samples")
-#     print(f"Validation set: {len(valid_data)} samples")
-#     print(f"Test set: {len(test_data)} samples")
-    
-#     return train_data, valid_data, test_data
+    # If we have exactly 2 unique values and they are 0 and 1, it's binary classification
+    if len(unique_values) == 2 and set(unique_values) == {0, 1}:
+        return "classification"
+    # If we have more than 2 unique values or values other than 0/1, it's regression
+    else:
+        return "regression"
 
-def load_solubility_data(property_name: str = 'Solubility_AqSolDB'):
+
+def load_admet_data(property_name: str):
     """Load TDC ADMET dataset with proper train/validation/test split"""
-    from tdc.benchmark_group import admet_group
-
     if not tdc_available:
         print("TDC not available. Install with: pip install PyTDC")
         return None, None, None
@@ -340,6 +353,140 @@ def load_solubility_data(property_name: str = 'Solubility_AqSolDB'):
         return None, None, None
 
 
+# Remove this function as it's not needed in the new structure
+# def load_pretrained_model(checkpoint_path: str, input_vocab_path: str, target_vocab_path: str) -> Tuple[nn.Module, Dict, Dict]:
+    """Load pretrained MolE model and vocabularies"""
+    print(f"Loading pretrained model from: {checkpoint_path}")
+    
+    # Load vocabularies
+    with open(input_vocab_path, 'rb') as f:
+        input_vocab = pickle.load(f)
+    
+    with open(target_vocab_path, 'rb') as f:
+        target_vocab = pickle.load(f)
+    
+    print(f"Input vocabulary size: {len(input_vocab)}")
+    print(f"Target vocabulary size: {len(target_vocab)}")
+    
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    
+    # Extract model configuration from checkpoint
+    if 'hyper_parameters' in checkpoint:
+        config = checkpoint['hyper_parameters']
+    else:
+        # Default configuration matching the solubility script
+        config = {
+            'hidden_size': 768,
+            'num_hidden_layers': 12,
+            'num_attention_heads': 12,
+            'intermediate_size': 3072,
+            'dropout': 0.1,
+        }
+    
+    print(f"Model configuration: {config}")
+    
+    # Create the base model (without prediction head)
+    model = CrossEnvMLMModel(
+        deberta_config=config,
+        input_vocab_size=len(input_vocab),
+        target_vocab_size=len(target_vocab),
+        dropout=config.get('dropout', 0.1),
+    )
+    
+    # Load state dict
+    state_dict = checkpoint['state_dict']
+    
+    # Filter out incompatible keys
+    model_state_dict = model.state_dict()
+    filtered_state_dict = {}
+    
+    for key, value in state_dict.items():
+        # Remove 'model.' prefix if it exists
+        clean_key = key.replace('model.', '') if key.startswith('model.') else key
+        
+        if clean_key in model_state_dict and model_state_dict[clean_key].shape == value.shape:
+            filtered_state_dict[clean_key] = value
+    
+    # Load the filtered state dict
+    missing_keys, unexpected_keys = model.load_state_dict(filtered_state_dict, strict=False)
+    
+    print(f"Loaded {len(filtered_state_dict)} compatible parameters")
+    if missing_keys:
+        print(f"Missing keys: {len(missing_keys)}")
+    if unexpected_keys:
+        print(f"Unexpected keys: {len(unexpected_keys)}")
+    
+    return model, input_vocab, target_vocab
+
+
+# Remove this function as it's not needed in the new structure
+# def create_admet_model(base_model: nn.Module, task_type: str = "regression", hidden_size: int = 768) -> nn.Module:
+    """Create ADMET model by adding prediction head to pretrained model"""
+    
+    class ADMETModel(nn.Module):
+        def __init__(self, encoder, prediction_head):
+            super().__init__()
+            self.encoder = encoder
+            self.prediction_head = prediction_head
+            self.task_type = task_type
+        
+        def forward(self, input_ids, attention_mask=None):
+            # Get encoder outputs
+            encoder_outputs = self.encoder.encoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            
+            # Extract hidden states from encoder output
+            # The encoder returns a dictionary with 'last_hidden_state' or 'hidden_states'
+            if isinstance(encoder_outputs, dict):
+                # Handle dictionary output (from BertEncoder/AtomEnvEmbeddings)
+                if 'last_hidden_state' in encoder_outputs:
+                    # Use last_hidden_state if available (single tensor)
+                    hidden_states = encoder_outputs['last_hidden_state']
+                elif 'hidden_states' in encoder_outputs:
+                    # Use hidden_states (could be list or single tensor)
+                    if isinstance(encoder_outputs['hidden_states'], list):
+                        hidden_states = encoder_outputs['hidden_states'][-1]  # Get last layer
+                    else:
+                        hidden_states = encoder_outputs['hidden_states']
+                else:
+                    raise ValueError("Encoder output dict missing 'hidden_states' or 'last_hidden_state' key")
+            elif isinstance(encoder_outputs, tuple):
+                # Handle tuple output (fallback for other transformer models)
+                if len(encoder_outputs) > 0:
+                    if isinstance(encoder_outputs[0], list):
+                        hidden_states = encoder_outputs[0][-1]
+                    else:
+                        hidden_states = encoder_outputs[0]
+                else:
+                    raise ValueError("Empty tuple from encoder")
+            elif hasattr(encoder_outputs, 'last_hidden_state'):
+                # Handle named tuple output (from HuggingFace models)
+                hidden_states = encoder_outputs.last_hidden_state
+            else:
+                # Assume it's already the hidden states tensor
+                hidden_states = encoder_outputs
+            
+            # Apply prediction head
+            predictions = self.prediction_head(hidden_states, attention_mask)
+            
+            return predictions
+    
+    # Create prediction head
+    prediction_head = ADMETRegularPredictionHead(
+        hidden_size=hidden_size,
+        dropout=0.1,
+        task_type=task_type
+    )
+    
+    # Combine encoder and prediction head
+    admet_model = ADMETModel(base_model, prediction_head)
+    
+    return admet_model
+
+
 def filter_outliers(df, target_col, n_std=3):
     """Remove extreme outliers from the dataset"""
     mean_val = df[target_col].mean()
@@ -354,9 +501,9 @@ def filter_outliers(df, target_col, n_std=3):
     return filtered_df
 
 
-def preprocess_solubility_data(train_df, valid_df, test_df, target_col='Y', use_max_samples=True):
-    """Preprocess solubility data with proper train/validation/test split"""
-    print(f"\n2. Using target: {target_col} (log solubility)")
+def preprocess_admet_data(train_df, valid_df, test_df, target_col='Y', use_max_samples=True):
+    """Preprocess ADMET data with proper train/validation/test split"""
+    print(f"\n2. Using target: {target_col}")
     
     # Clean the data
     train_clean = train_df.dropna(subset=['Drug', target_col])
@@ -365,9 +512,18 @@ def preprocess_solubility_data(train_df, valid_df, test_df, target_col='Y', use_
     
     print(f"After cleaning: {len(train_clean)} train, {len(valid_clean)} valid, {len(test_clean)} test")
     
-    # Remove extreme outliers from training data only (to avoid data leakage)
+    # Detect task type
+    task_type = detect_task_type(train_clean[target_col].values)
+    print(f"Detected task type: {task_type}")
+    
+    # Remove extreme outliers from training data only (for regression tasks, to avoid data leakage)
     print("\n3. Preprocessing and filtering...")
-    train_filtered = filter_outliers(train_clean, target_col, n_std=3)
+    if task_type == "regression":
+        train_filtered = filter_outliers(train_clean, target_col, n_std=3)
+        print("No outlier removal for classification task")
+    else:
+        train_filtered = train_clean
+        print("No outlier removal for classification task")
     
     if use_max_samples:
         # Use all available data
@@ -389,14 +545,25 @@ def preprocess_solubility_data(train_df, valid_df, test_df, target_col='Y', use_
         print(f"Using sampled data: {len(train_subset)} train, {len(valid_subset)} valid, {len(test_subset)} test")
     
     # Show target statistics
-    train_range = f"{train_subset[target_col].min():.2f} to {train_subset[target_col].max():.2f}"
-    valid_range = f"{valid_subset[target_col].min():.2f} to {valid_subset[target_col].max():.2f}"
-    test_range = f"{test_subset[target_col].min():.2f} to {test_subset[target_col].max():.2f}"
-    print(f"Train solubility range: {train_range}")
-    print(f"Validation solubility range: {valid_range}")
-    print(f"Test solubility range: {test_range}")
+    if task_type == "regression":
+        train_range = f"{train_subset[target_col].min():.2f} to {train_subset[target_col].max():.2f}"
+        valid_range = f"{valid_subset[target_col].min():.2f} to {valid_subset[target_col].max():.2f}"
+        test_range = f"{test_subset[target_col].min():.2f} to {test_subset[target_col].max():.2f}"
+        print(f"Train target range: {train_range}")
+        print(f"Validation target range: {valid_range}")
+        print(f"Test target range: {test_range}")
+    else:
+        train_pos = np.sum(train_subset[target_col] == 1)
+        train_neg = np.sum(train_subset[target_col] == 0)
+        valid_pos = np.sum(valid_subset[target_col] == 1)
+        valid_neg = np.sum(valid_subset[target_col] == 0)
+        test_pos = np.sum(test_subset[target_col] == 1)
+        test_neg = np.sum(test_subset[target_col] == 0)
+        print(f"Train - Positives: {train_pos}, Negatives: {train_neg}")
+        print(f"Validation - Positives: {valid_pos}, Negatives: {valid_neg}")
+        print(f"Test - Positives: {test_pos}, Negatives: {test_neg}")
     
-    return train_subset, valid_subset, test_subset
+    return train_subset, valid_subset, test_subset, task_type
 
 
 def create_mole_config():
@@ -433,8 +600,8 @@ def create_mole_config():
     return config
 
 
-def create_mole_datasets(train_subset, valid_subset, test_subset, input_vocab_path: str, target_vocab_path: str, target_col='Y'):
-    """Create datasets for solubility prediction using MolE tokenization"""
+def create_admet_datasets(train_subset, valid_subset, test_subset, input_vocab_path: str, target_vocab_path: str, target_col='Y', task_type='regression'):
+    """Create datasets for ADMET prediction using MolE tokenization"""
     print("\n4. Creating MolE datasets...")
     
     # Prepare data first
@@ -468,23 +635,31 @@ def create_mole_datasets(train_subset, valid_subset, test_subset, input_vocab_pa
     # Setup data module to get tokenizers
     data_module.setup("fit")
     
-    # Use RobustScaler for better outlier handling (fit only on training data)
-    scaler = RobustScaler()
-    train_labels_scaled = scaler.fit_transform(train_labels.reshape(-1, 1)).flatten()
-    valid_labels_scaled = scaler.transform(valid_labels.reshape(-1, 1)).flatten()
-    test_labels_scaled = scaler.transform(test_labels.reshape(-1, 1)).flatten()
-    
-    orig_stats = f"Train mean: {train_labels.mean():.3f}, std: {train_labels.std():.3f}"
-    scaled_stats = f"Train mean: {train_labels_scaled.mean():.3f}, std: {train_labels_scaled.std():.3f}"
-    print(f"Original target stats - {orig_stats}")
-    print(f"Scaled target stats - {scaled_stats}")
+    # Use RobustScaler for better outlier handling (fit only on training data for regression)
+    scaler = None
+    if task_type == "regression":
+        scaler = RobustScaler()
+        train_labels_scaled = scaler.fit_transform(train_labels.reshape(-1, 1)).flatten()
+        valid_labels_scaled = scaler.transform(valid_labels.reshape(-1, 1)).flatten()
+        test_labels_scaled = scaler.transform(test_labels.reshape(-1, 1)).flatten()
+        
+        orig_stats = f"Train mean: {train_labels.mean():.3f}, std: {train_labels.std():.3f}"
+        scaled_stats = f"Train mean: {train_labels_scaled.mean():.3f}, std: {train_labels_scaled.std():.3f}"
+        print(f"Original target stats - {orig_stats}")
+        print(f"Scaled target stats - {scaled_stats}")
+    else:
+        # For classification, use labels as is
+        train_labels_scaled = train_labels
+        valid_labels_scaled = valid_labels
+        test_labels_scaled = test_labels
+        print(f"Classification task - using labels as is")
     
     # Create PyTorch datasets
     print("\n5. Creating PyTorch datasets...")
     
-    train_dataset = SMILESDataset(train_smiles, train_labels_scaled, data_module)
-    valid_dataset = SMILESDataset(valid_smiles, valid_labels_scaled, data_module)
-    test_dataset = SMILESDataset(test_smiles, test_labels_scaled, data_module)
+    train_dataset = ADMETDataset(train_smiles, train_labels_scaled, data_module, task_type)
+    valid_dataset = ADMETDataset(valid_smiles, valid_labels_scaled, data_module, task_type)
+    test_dataset = ADMETDataset(test_smiles, test_labels_scaled, data_module, task_type)
     
     print(f"Training dataset created with {len(train_dataset)} samples")
     print(f"Validation dataset created with {len(valid_dataset)} samples")
@@ -536,17 +711,18 @@ def collate_fn(batch):
     }
 
 
-def train_mole_model(model, train_dataset, valid_dataset, data_module,
-                    epochs=30, batch_size=16, learning_rate=1e-4,
-                    device='cuda' if torch.cuda.is_available() else 'cpu',
-                    unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1, accumulate_grad_batches=1):
-    """Train the MolE model (from scratch or with pretrained weights)"""
+def train_admet_model(model, train_dataset, valid_dataset, data_module, task_type,
+                     epochs=30, batch_size=16, learning_rate=1e-4,
+                     device='cuda' if torch.cuda.is_available() else 'cpu',
+                     unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1, accumulate_grad_batches=1):
+    """Train the MolE ADMET model (from scratch or with pretrained weights)"""
     training_type = "fine-tuning" if unfreeze_encoder_epoch is not None else "from scratch"
-    print(f"\n6. Training MolE model ({training_type}) on {device}...")
+    print(f"\n6. Training MolE ADMET model ({training_type}) on {device}...")
     
     if unfreeze_encoder_epoch is not None:
         print(f"   → Encoder will be unfrozen at epoch {unfreeze_encoder_epoch}")
     
+    print(f"   → Task type: {task_type}")
     print(f"   → Gradient accumulation: {accumulate_grad_batches} batches")
     print(f"   → Effective batch size: {batch_size * accumulate_grad_batches}")
     
@@ -557,8 +733,12 @@ def train_mole_model(model, train_dataset, valid_dataset, data_module,
     # Move model to device
     model = model.to(device)
     
-    # Loss function and optimizer
-    criterion = nn.MSELoss()
+    # Loss function based on task type
+    if task_type == "regression":
+        criterion = nn.MSELoss()
+    else:  # classification
+        criterion = nn.CrossEntropyLoss()
+    
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
     
@@ -603,7 +783,13 @@ def train_mole_model(model, train_dataset, valid_dataset, data_module,
             
             # Forward pass
             outputs = model(input_ids, attention_mask)
-            loss = criterion(outputs, labels)
+            
+            # Handle different task types
+            if task_type == "regression":
+                loss = criterion(outputs, labels)
+            else:  # classification
+                labels = labels.long()  # Convert to long for CrossEntropyLoss
+                loss = criterion(outputs, labels)
             
             # Scale loss for gradient accumulation
             loss = loss / accumulate_grad_batches
@@ -633,7 +819,13 @@ def train_mole_model(model, train_dataset, valid_dataset, data_module,
                 attention_mask = batch['attention_mask'].to(device)
                 
                 outputs = model(input_ids, attention_mask)
-                loss = criterion(outputs, labels)
+                
+                if task_type == "regression":
+                    loss = criterion(outputs, labels)
+                else:  # classification
+                    labels = labels.long()
+                    loss = criterion(outputs, labels)
+                
                 valid_loss += loss.item()
         
         avg_train_loss = train_loss / len(train_loader)
@@ -648,7 +840,7 @@ def train_mole_model(model, train_dataset, valid_dataset, data_module,
             best_valid_loss = avg_valid_loss
             patience_counter = 0
             # Save best model
-            torch.save(model.state_dict(), 'best_mole_solubility_model.pth')
+            torch.save(model.state_dict(), 'best_mole_admet_model.pth')
         else:
             patience_counter += 1
             if patience_counter >= patience:
@@ -656,16 +848,16 @@ def train_mole_model(model, train_dataset, valid_dataset, data_module,
                 break
     
     # Load best model
-    model.load_state_dict(torch.load('best_mole_solubility_model.pth'))
+    model.load_state_dict(torch.load('best_mole_admet_model.pth'))
     print(f"Training completed. Best validation loss: {best_valid_loss:.4f}")
     
     return model
 
 
-def evaluate_mole_model(model, train_dataset, valid_dataset, test_dataset, scaler, data_module, 
-                       model_name, save_predictions=True, 
-                       device='cuda' if torch.cuda.is_available() else 'cpu'):
-    """Evaluate MolE model and return metrics"""
+def evaluate_admet_model(model, train_dataset, valid_dataset, test_dataset, scaler, data_module, 
+                        model_name, property_name, task_type, save_predictions=True, 
+                        device='cuda' if torch.cuda.is_available() else 'cpu'):
+    """Evaluate MolE ADMET model and return metrics"""
     print("\n7. Evaluating model...")
     
     model.eval()
@@ -687,7 +879,12 @@ def evaluate_mole_model(model, train_dataset, valid_dataset, test_dataset, scale
             attention_mask = batch['attention_mask'].to(device)
             
             outputs = model(input_ids, attention_mask)
-            train_preds_scaled.extend(outputs.cpu().numpy())
+            if task_type == "classification":
+                # Get probabilities for positive class
+                probs = torch.softmax(outputs, dim=1)[:, 1]
+                train_preds_scaled.extend(probs.cpu().numpy())
+            else:
+                train_preds_scaled.extend(outputs.cpu().numpy())
         
         for batch in valid_loader:
             smiles = batch['smiles']
@@ -695,7 +892,12 @@ def evaluate_mole_model(model, train_dataset, valid_dataset, test_dataset, scale
             attention_mask = batch['attention_mask'].to(device)
             
             outputs = model(input_ids, attention_mask)
-            valid_preds_scaled.extend(outputs.cpu().numpy())
+            if task_type == "classification":
+                # Get probabilities for positive class
+                probs = torch.softmax(outputs, dim=1)[:, 1]
+                valid_preds_scaled.extend(probs.cpu().numpy())
+            else:
+                valid_preds_scaled.extend(outputs.cpu().numpy())
         
         for batch in test_loader:
             smiles = batch['smiles']
@@ -703,7 +905,12 @@ def evaluate_mole_model(model, train_dataset, valid_dataset, test_dataset, scale
             attention_mask = batch['attention_mask'].to(device)
             
             outputs = model(input_ids, attention_mask)
-            test_preds_scaled.extend(outputs.cpu().numpy())
+            if task_type == "classification":
+                # Get probabilities for positive class
+                probs = torch.softmax(outputs, dim=1)[:, 1]
+                test_preds_scaled.extend(probs.cpu().numpy())
+            else:
+                test_preds_scaled.extend(outputs.cpu().numpy())
     
     train_preds_scaled = np.array(train_preds_scaled)
     valid_preds_scaled = np.array(valid_preds_scaled)
@@ -711,72 +918,134 @@ def evaluate_mole_model(model, train_dataset, valid_dataset, test_dataset, scale
     
     print("Predictions completed")
     
-    # Convert predictions back to original scale
-    train_preds = scaler.inverse_transform(train_preds_scaled.reshape(-1, 1)).flatten()
-    valid_preds = scaler.inverse_transform(valid_preds_scaled.reshape(-1, 1)).flatten()
-    test_preds = scaler.inverse_transform(test_preds_scaled.reshape(-1, 1)).flatten()
+    # Convert predictions back to original scale for regression
+    if task_type == "regression" and scaler is not None:
+        train_preds = scaler.inverse_transform(train_preds_scaled.reshape(-1, 1)).flatten()
+        valid_preds = scaler.inverse_transform(valid_preds_scaled.reshape(-1, 1)).flatten()
+        test_preds = scaler.inverse_transform(test_preds_scaled.reshape(-1, 1)).flatten()
+        
+        # Get the actual labels
+        train_actual = scaler.inverse_transform(np.array(train_dataset.labels).reshape(-1, 1)).flatten()
+        valid_actual = scaler.inverse_transform(np.array(valid_dataset.labels).reshape(-1, 1)).flatten()
+        test_actual = scaler.inverse_transform(np.array(test_dataset.labels).reshape(-1, 1)).flatten()
+    else:
+        # For classification, use scaled values as is
+        train_preds = train_preds_scaled
+        valid_preds = valid_preds_scaled
+        test_preds = test_preds_scaled
+        
+        train_actual = np.array(train_dataset.labels)
+        valid_actual = np.array(valid_dataset.labels)
+        test_actual = np.array(test_dataset.labels)
     
-    # Get the actual labels
-    train_actual = scaler.inverse_transform(np.array(train_dataset.labels).reshape(-1, 1)).flatten()
-    valid_actual = scaler.inverse_transform(np.array(valid_dataset.labels).reshape(-1, 1)).flatten()
-    test_actual = scaler.inverse_transform(np.array(test_dataset.labels).reshape(-1, 1)).flatten()
-    
-    # Calculate regression metrics
-    train_mae = mean_absolute_error(train_actual, train_preds)
-    valid_mae = mean_absolute_error(valid_actual, valid_preds)
-    test_mae = mean_absolute_error(test_actual, test_preds)
-    train_rmse = np.sqrt(mean_squared_error(train_actual, train_preds))
-    valid_rmse = np.sqrt(mean_squared_error(valid_actual, valid_preds))
-    test_rmse = np.sqrt(mean_squared_error(test_actual, test_preds))
-    train_r2 = r2_score(train_actual, train_preds)
-    valid_r2 = r2_score(valid_actual, valid_preds)
-    test_r2 = r2_score(test_actual, test_preds)
-    
-    print(f"\n=== Results for Solubility using {model_name} ===")
-    print(f"Train MAE:  {train_mae:.3f}")
-    print(f"Valid MAE:  {valid_mae:.3f}")
-    print(f"Test MAE:   {test_mae:.3f}")
-    print(f"Train RMSE: {train_rmse:.3f}")
-    print(f"Valid RMSE: {valid_rmse:.3f}")
-    print(f"Test RMSE:  {test_rmse:.3f}")
-    print(f"Train R²:   {train_r2:.3f}")
-    print(f"Valid R²:   {valid_r2:.3f}")
-    print(f"Test R²:    {test_r2:.3f}")
+    # Calculate metrics based on task type
+    if task_type == "regression":
+        train_mae = mean_absolute_error(train_actual, train_preds)
+        valid_mae = mean_absolute_error(valid_actual, valid_preds)
+        test_mae = mean_absolute_error(test_actual, test_preds)
+        train_rmse = np.sqrt(mean_squared_error(train_actual, train_preds))
+        valid_rmse = np.sqrt(mean_squared_error(valid_actual, valid_preds))
+        test_rmse = np.sqrt(mean_squared_error(test_actual, test_preds))
+        train_r2 = r2_score(train_actual, train_preds)
+        valid_r2 = r2_score(valid_actual, valid_preds)
+        test_r2 = r2_score(test_actual, test_preds)
+        
+        print(f"\n=== Results for {property_name} using {model_name} (Regression) ===")
+        print(f"Train MAE:  {train_mae:.3f}")
+        print(f"Valid MAE:  {valid_mae:.3f}")
+        print(f"Test MAE:   {test_mae:.3f}")
+        print(f"Train RMSE: {train_rmse:.3f}")
+        print(f"Valid RMSE: {valid_rmse:.3f}")
+        print(f"Test RMSE:  {test_rmse:.3f}")
+        print(f"Train R²:   {train_r2:.3f}")
+        print(f"Valid R²:   {valid_r2:.3f}")
+        print(f"Test R²:    {test_r2:.3f}")
+        
+        metrics = {
+            'train_mae': train_mae, 'valid_mae': valid_mae, 'test_mae': test_mae,
+            'train_rmse': train_rmse, 'valid_rmse': valid_rmse, 'test_rmse': test_rmse,
+            'train_r2': train_r2, 'valid_r2': valid_r2, 'test_r2': test_r2
+        }
+    else:
+        # Convert probabilities to binary predictions
+        train_binary = (train_preds > 0.5).astype(int)
+        valid_binary = (valid_preds > 0.5).astype(int)
+        test_binary = (test_preds > 0.5).astype(int)
+        
+        train_acc = accuracy_score(train_actual, train_binary)
+        valid_acc = accuracy_score(valid_actual, valid_binary)
+        test_acc = accuracy_score(test_actual, test_binary)
+        train_prec = precision_score(train_actual, train_binary, zero_division=0)
+        valid_prec = precision_score(valid_actual, valid_binary, zero_division=0)
+        test_prec = precision_score(test_actual, test_binary, zero_division=0)
+        train_rec = recall_score(train_actual, train_binary, zero_division=0)
+        valid_rec = recall_score(valid_actual, valid_binary, zero_division=0)
+        test_rec = recall_score(test_actual, test_binary, zero_division=0)
+        train_f1 = f1_score(train_actual, train_binary, zero_division=0)
+        valid_f1 = f1_score(valid_actual, valid_binary, zero_division=0)
+        test_f1 = f1_score(test_actual, test_binary, zero_division=0)
+        train_auc = roc_auc_score(train_actual, train_preds)
+        valid_auc = roc_auc_score(valid_actual, valid_preds)
+        test_auc = roc_auc_score(test_actual, test_preds)
+        
+        print(f"\n=== Results for {property_name} using {model_name} (Classification) ===")
+        print(f"Train Accuracy: {train_acc:.3f}")
+        print(f"Valid Accuracy: {valid_acc:.3f}")
+        print(f"Test Accuracy:  {test_acc:.3f}")
+        print(f"Train Precision: {train_prec:.3f}")
+        print(f"Valid Precision: {valid_prec:.3f}")
+        print(f"Test Precision:  {test_prec:.3f}")
+        print(f"Train Recall: {train_rec:.3f}")
+        print(f"Valid Recall: {valid_rec:.3f}")
+        print(f"Test Recall:  {test_rec:.3f}")
+        print(f"Train F1: {train_f1:.3f}")
+        print(f"Valid F1: {valid_f1:.3f}")
+        print(f"Test F1:  {test_f1:.3f}")
+        print(f"Train AUC: {train_auc:.3f}")
+        print(f"Valid AUC: {valid_auc:.3f}")
+        print(f"Test AUC:  {test_auc:.3f}")
+        
+        metrics = {
+            'train_acc': train_acc, 'valid_acc': valid_acc, 'test_acc': test_acc,
+            'train_prec': train_prec, 'valid_prec': valid_prec, 'test_prec': test_prec,
+            'train_rec': train_rec, 'valid_rec': valid_rec, 'test_rec': test_rec,
+            'train_f1': train_f1, 'valid_f1': valid_f1, 'test_f1': test_f1,
+            'train_auc': train_auc, 'valid_auc': valid_auc, 'test_auc': test_auc
+        }
     
     # Save predictions to CSV files
     if save_predictions:
         save_predictions_to_csv(train_preds, train_actual, valid_preds, valid_actual, test_preds, test_actual, 
-                               model_name, train_dataset, valid_dataset, test_dataset)
+                               model_name, property_name, task_type, train_dataset, valid_dataset, test_dataset)
     
     # Show some sample predictions
     print(f"\nSample predictions (first 10 test molecules):")
     for i in range(min(10, len(test_preds))):
         pred = test_preds[i]
         actual = test_actual[i]
-        error = abs(pred - actual)
-        print(f"  Predicted: {pred:.3f}, Actual: {actual:.3f}, Error: {error:.3f}")
+        if task_type == "regression":
+            error = abs(pred - actual)
+            print(f"  Predicted: {pred:.3f}, Actual: {actual:.3f}, Error: {error:.3f}")
+        else:
+            pred_class = "Positive" if pred > 0.5 else "Negative"
+            actual_class = "Positive" if actual == 1 else "Negative"
+            correct = "✓" if (pred > 0.5) == (actual == 1) else "✗"
+            print(f"  Predicted: {pred:.3f} ({pred_class}), Actual: {actual_class}, {correct}")
     
     return {
         'model_type': model_name,
+        'property': property_name,
         'featurizer': 'MolE Atom Environments',
-        'task': 'regression',
-        'train_mae': train_mae,
-        'valid_mae': valid_mae,
-        'test_mae': test_mae,
-        'train_rmse': train_rmse,
-        'valid_rmse': valid_rmse,
-        'test_rmse': test_rmse,
-        'train_r2': train_r2,
-        'valid_r2': valid_r2,
-        'test_r2': test_r2,
+        'task': task_type,
         'n_train': len(train_dataset),
         'n_valid': len(valid_dataset),
-        'n_test': len(test_dataset)
+        'n_test': len(test_dataset),
+        **metrics
     }
 
 
 def save_predictions_to_csv(train_preds, train_actual, valid_preds, valid_actual, test_preds, test_actual, 
-                           model_name, train_dataset=None, valid_dataset=None, test_dataset=None):
+                           model_name, property_name, task_type, train_dataset=None, valid_dataset=None, test_dataset=None):
     """Save predictions to CSV files with SMILES"""
     import datetime
     
@@ -788,52 +1057,100 @@ def save_predictions_to_csv(train_preds, train_actual, valid_preds, valid_actual
     valid_smiles = getattr(valid_dataset, 'smiles', None) if valid_dataset else None
     test_smiles = getattr(test_dataset, 'smiles', None) if test_dataset else None
     
-    # Create training predictions DataFrame
-    train_data = {
-        'predicted_solubility': train_preds,
-        'actual_solubility': train_actual,
-        'absolute_error': np.abs(train_preds - train_actual),
-        'squared_error': (train_preds - train_actual) ** 2
-    }
-    
-    # Add SMILES if available
-    if train_smiles is not None:
-        train_data['smiles'] = train_smiles
-    
-    train_df = pd.DataFrame(train_data)
-    
-    # Create validation predictions DataFrame
-    valid_data = {
-        'predicted_solubility': valid_preds,
-        'actual_solubility': valid_actual,
-        'absolute_error': np.abs(valid_preds - valid_actual),
-        'squared_error': (valid_preds - valid_actual) ** 2
-    }
-    
-    # Add SMILES if available
-    if valid_smiles is not None:
-        valid_data['smiles'] = valid_smiles
-    
-    valid_df = pd.DataFrame(valid_data)
-    
-    # Create test predictions DataFrame
-    test_data = {
-        'predicted_solubility': test_preds,
-        'actual_solubility': test_actual,
-        'absolute_error': np.abs(test_preds - test_actual),
-        'squared_error': (test_preds - test_actual) ** 2
-    }
-    
-    # Add SMILES if available
-    if test_smiles is not None:
-        test_data['smiles'] = test_smiles
-    
-    test_df = pd.DataFrame(test_data)
+    if task_type == "regression":
+        # Create training predictions DataFrame
+        train_data = {
+            'predicted_value': train_preds,
+            'actual_value': train_actual,
+            'absolute_error': np.abs(train_preds - train_actual),
+            'squared_error': (train_preds - train_actual) ** 2
+        }
+        
+        # Add SMILES if available
+        if train_smiles is not None:
+            train_data['smiles'] = train_smiles
+        
+        train_df = pd.DataFrame(train_data)
+        
+        # Create validation predictions DataFrame
+        valid_data = {
+            'predicted_value': valid_preds,
+            'actual_value': valid_actual,
+            'absolute_error': np.abs(valid_preds - valid_actual),
+            'squared_error': (valid_preds - valid_actual) ** 2
+        }
+        
+        # Add SMILES if available
+        if valid_smiles is not None:
+            valid_data['smiles'] = valid_smiles
+        
+        valid_df = pd.DataFrame(valid_data)
+        
+        # Create test predictions DataFrame
+        test_data = {
+            'predicted_value': test_preds,
+            'actual_value': test_actual,
+            'absolute_error': np.abs(test_preds - test_actual),
+            'squared_error': (test_preds - test_actual) ** 2
+        }
+        
+        # Add SMILES if available
+        if test_smiles is not None:
+            test_data['smiles'] = test_smiles
+        
+        test_df = pd.DataFrame(test_data)
+    else:
+        # Classification task
+        train_binary = (train_preds > 0.5).astype(int)
+        valid_binary = (valid_preds > 0.5).astype(int)
+        test_binary = (test_preds > 0.5).astype(int)
+        
+        # Create training predictions DataFrame
+        train_data = {
+            'predicted_probability': train_preds,
+            'predicted_class': train_binary,
+            'actual_class': train_actual,
+            'correct_prediction': (train_binary == train_actual).astype(int)
+        }
+        
+        # Add SMILES if available
+        if train_smiles is not None:
+            train_data['smiles'] = train_smiles
+        
+        train_df = pd.DataFrame(train_data)
+        
+        # Create validation predictions DataFrame
+        valid_data = {
+            'predicted_probability': valid_preds,
+            'predicted_class': valid_binary,
+            'actual_class': valid_actual,
+            'correct_prediction': (valid_binary == valid_actual).astype(int)
+        }
+        
+        # Add SMILES if available
+        if valid_smiles is not None:
+            valid_data['smiles'] = valid_smiles
+        
+        valid_df = pd.DataFrame(valid_data)
+        
+        # Create test predictions DataFrame
+        test_data = {
+            'predicted_probability': test_preds,
+            'predicted_class': test_binary,
+            'actual_class': test_actual,
+            'correct_prediction': (test_binary == test_actual).astype(int)
+        }
+        
+        # Add SMILES if available
+        if test_smiles is not None:
+            test_data['smiles'] = test_smiles
+        
+        test_df = pd.DataFrame(test_data)
     
     # Generate filenames
-    train_filename = f"predictions_{model_name.lower()}_train_{timestamp}.csv"
-    valid_filename = f"predictions_{model_name.lower()}_valid_{timestamp}.csv"
-    test_filename = f"predictions_{model_name.lower()}_test_{timestamp}.csv"
+    train_filename = f"predictions_{model_name.lower()}_{property_name.lower()}_train_{timestamp}.csv"
+    valid_filename = f"predictions_{model_name.lower()}_{property_name.lower()}_valid_{timestamp}.csv"
+    test_filename = f"predictions_{model_name.lower()}_{property_name.lower()}_test_{timestamp}.csv"
     
     # Save to CSV
     train_df.to_csv(train_filename, index=False)
@@ -850,46 +1167,71 @@ def save_predictions_to_csv(train_preds, train_actual, valid_preds, valid_actual
     
     # Print summary statistics
     print(f"\n📊 Prediction Summary:")
-    print(f"  Training - Mean Error: {train_df['absolute_error'].mean():.3f}")
-    print(f"  Validation - Mean Error: {valid_df['absolute_error'].mean():.3f}")
-    print(f"  Test - Mean Error: {test_df['absolute_error'].mean():.3f}")
-    print(f"  Training - Std Error: {train_df['absolute_error'].std():.3f}")
-    print(f"  Validation - Std Error: {valid_df['absolute_error'].std():.3f}")
-    print(f"  Test - Std Error: {test_df['absolute_error'].std():.3f}")
-
-
-def print_model_features(model_name, model_type):
-    """Print model-specific features"""
-    if "MolE" in model_type:
-        print(f"\n🧠 MOLECULAR ENVIRONMENT (MOLECULAR) TRANSFORMER FEATURES:")
-        print(f"  ✅ DeBERTa-based architecture with disentangled attention")
-        print(f"  ✅ 12-layer transformer encoder (768 hidden, 12 heads)")
-        print(f"  ✅ Atom environment tokenization (radius 0 structural)")
-        print(f"  ✅ RDKit-based molecular featurization")
-        print(f"  ✅ Global average pooling over sequence")
-        print(f"  ✅ Dedicated solubility prediction head")
-        print(f"  ✅ Configurable encoder freezing for transfer learning")
-        print(f"  ✅ Gradual unfreezing strategy for optimal fine-tuning")
-        print(f"  ✅ Dropout regularization (0.1)")
-        print(f"  ✅ AdamW optimizer with weight decay")
-        print(f"  ✅ Learning rate scheduling with early stopping")
+    if task_type == "regression":
+        print(f"  Training - Mean Error: {train_df['absolute_error'].mean():.3f}")
+        print(f"  Validation - Mean Error: {valid_df['absolute_error'].mean():.3f}")
+        print(f"  Test - Mean Error: {test_df['absolute_error'].mean():.3f}")
+        print(f"  Training - Std Error: {train_df['absolute_error'].std():.3f}")
+        print(f"  Validation - Std Error: {valid_df['absolute_error'].std():.3f}")
+        print(f"  Test - Std Error: {test_df['absolute_error'].std():.3f}")
     else:
-        print(f"\n⚠️  MODEL TYPE UNKNOWN:")
-        print(f"  • Used fallback model")
-    
-    print(f"\n📈 KEY OPTIMIZATIONS:")
-    print(f"  ✅ RobustScaler for outlier handling")
-    print(f"  ✅ Outlier filtering (3-sigma rule)")
-    print(f"  ✅ Extended training epochs with early stopping")
-    print(f"  ✅ Gradient clipping for stability")
-    print(f"  ✅ Optimized hyperparameters for {model_name}")
+        print(f"  Training - Accuracy: {train_df['correct_prediction'].mean():.3f}")
+        print(f"  Validation - Accuracy: {valid_df['correct_prediction'].mean():.3f}")
+        print(f"  Test - Accuracy: {test_df['correct_prediction'].mean():.3f}")
+
+
+def get_available_admet_properties():
+    """Get list of available ADMET properties from TDC benchmark group"""
+    try:
+        group = admet_group(path="data/")
+        return group.dataset_names
+    except Exception as e:
+        print(f"Warning: Could not load ADMET properties: {e}")
+        # Return common ADMET properties as fallback
+        return [
+            "Solubility_AqSolDB",
+            "Caco2_Wang", 
+            "Lipophilicity_AstraZeneca",
+            "PPBR_AZ",
+            "VDss_Lombardo",
+            "Half_Life_Obach",
+            "Clearance_Hepatocyte_AZ",
+            "Clearance_Microsome_AZ",
+            "Bioavailability_Ma",
+            "CYP2C19_Veith",
+            "CYP2D6_Veith",
+            "CYP3A4_Veith",
+            "CYP1A2_Veith", 
+            "CYP2C9_Veith",
+            "BBB_Martins",
+            "Pgp_Broccatelli",
+            "HIA_Hou",
+            "PAMPA_NCATS",
+            "herg",
+            "ames",
+            "dili",
+            "ld50_zhu",
+        ]
 
 
 def parse_args():
     """Parse command-line arguments"""
     parser = argparse.ArgumentParser(
-        description="Molecular solubility prediction using MolE Transformer model",
+        description="ADMET property prediction using MolE Transformer model",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    
+    # ADMET property argument
+    parser.add_argument(
+        "--property",
+        type=str,
+        default="Solubility_AqSolDB",
+        help="ADMET property to evaluate (default: Solubility_AqSolDB). Use --list-properties to see all available."
+    )
+    parser.add_argument(
+        "--list-properties",
+        action="store_true",
+        help="List all available ADMET properties and exit"
     )
     
     # Pretrained model arguments
@@ -972,12 +1314,41 @@ def parse_args():
     return parser.parse_args()
 
 
-def print_success_message(model_name, model_type, use_pretrained=False):
+def print_model_features(model_name, model_type, property_name, task_type):
+    """Print model-specific features"""
+    if "MolE" in model_type:
+        print(f"\n🧠 MOLECULAR ENVIRONMENT (MOLECULAR) TRANSFORMER FEATURES:")
+        print(f"  ✅ DeBERTa-based architecture with disentangled attention")
+        print(f"  ✅ 12-layer transformer encoder (768 hidden, 12 heads)")
+        print(f"  ✅ Atom environment tokenization (radius 0 structural)")
+        print(f"  ✅ RDKit-based molecular featurization")
+        print(f"  ✅ Global average pooling over sequence")
+        print(f"  ✅ Dedicated ADMET prediction head for {property_name}")
+        print(f"  ✅ Task type: {task_type}")
+        print(f"  ✅ Configurable encoder freezing for transfer learning")
+        print(f"  ✅ Gradual unfreezing strategy for optimal fine-tuning")
+        print(f"  ✅ Dropout regularization (0.1)")
+        print(f"  ✅ AdamW optimizer with weight decay")
+        print(f"  ✅ Learning rate scheduling with early stopping")
+    else:
+        print(f"\n⚠️  MODEL TYPE UNKNOWN:")
+        print(f"  • Used fallback model")
+    
+    print(f"\n📈 KEY OPTIMIZATIONS:")
+    print(f"  ✅ RobustScaler for outlier handling (regression only)")
+    print(f"  ✅ Outlier filtering (3-sigma rule, regression only)")
+    print(f"  ✅ Extended training epochs with early stopping")
+    print(f"  ✅ Gradient clipping for stability")
+    print(f"  ✅ Optimized hyperparameters for {model_name}")
+
+
+def print_success_message(model_name, model_type, property_name, task_type, use_pretrained=False):
     """Print success message with model details"""
-    print(f"\n🎉 SUCCESS! {model_type} model trained on solubility data")
+    print(f"\n🎉 SUCCESS! {model_type} model trained on {property_name} data")
     print(f"The system successfully:")
     print(f"  ✅ Used MolE atom environment tokenization")
-    print(f"  ✅ Used {model_type} for molecular property prediction")
+    print(f"  ✅ Used {model_type} for {property_name} prediction")
+    print(f"  ✅ Handled {task_type} task type")
     
     if use_pretrained:
         print(f"  ✅ Loaded pretrained weights for transfer learning")
@@ -986,7 +1357,7 @@ def print_success_message(model_name, model_type, use_pretrained=False):
         print(f"  ✅ Trained from scratch with DeBERTa architecture")
     
     print(f"  ✅ Applied transformer attention mechanisms")
-    print(f"  ✅ Generated solubility predictions with dedicated head")
+    print(f"  ✅ Generated {property_name} predictions with dedicated head")
 
 
 def main():
@@ -994,7 +1365,15 @@ def main():
     # Parse command-line arguments
     args = parse_args()
     
-    print("🧪 MOLECULAR SOLUBILITY PREDICTION WITH MOLECULAR ENVIRONMENT TRANSFORMER")
+    # List available properties if requested
+    if args.list_properties:
+        print("Available ADMET properties:")
+        properties = get_available_admet_properties()
+        for i, prop in enumerate(properties, 1):
+            print(f"  {i:2d}. {prop}")
+        return
+    
+    print("🧬 ADMET PROPERTY PREDICTION WITH MOLECULAR ENVIRONMENT TRANSFORMER")
     print("=" * 80)
     
     # Configuration based on arguments
@@ -1003,6 +1382,7 @@ def main():
     UNFREEZE_EPOCH = args.freeze_epochs
     
     print(f"🔧 Configuration:")
+    print(f"   Property: {args.property}")
     print(f"   Checkpoint path: {args.checkpoint_path or 'None (training from scratch)'}")
     print(f"   FREEZE_ENCODER = {FREEZE_ENCODER}")
     print(f"   GRADUAL_UNFREEZING = {GRADUAL_UNFREEZING}")
@@ -1035,15 +1415,15 @@ def main():
     target_vocab_path = args.target_vocab
     
     # Step 1: Load data
-    print("\n1. Loading solubility dataset...")
-    train_df, valid_df, test_df = load_solubility_data()
+    print("\n1. Loading ADMET dataset...")
+    train_df, valid_df, test_df = load_admet_data(args.property)
     
     if train_df is None or valid_df is None or test_df is None:
         print("❌ Failed to load data. Exiting.")
         return
     
     # Step 2: Preprocess data
-    train_subset, valid_subset, test_subset = preprocess_solubility_data(
+    train_subset, valid_subset, test_subset, task_type = preprocess_admet_data(
         train_df, valid_df, test_df, target_col='Y', use_max_samples=True
     )
     
@@ -1057,13 +1437,13 @@ def main():
     print(f"  Vocabulary size: {config.vocab_size}")
     
     # Step 4: Create MolE datasets
-    train_dataset, valid_dataset, test_dataset, scaler, data_module = create_mole_datasets(
-        train_subset, valid_subset, test_subset, input_vocab_path, target_vocab_path, target_col='Y'
+    train_dataset, valid_dataset, test_dataset, scaler, data_module = create_admet_datasets(
+        train_subset, valid_subset, test_subset, input_vocab_path, target_vocab_path, target_col='Y', task_type=task_type
     )
     
     # Step 5: Create MolE model
     print("\n5. Creating MolE model...")
-    model = MolESolubilityModel(config, hidden_size=args.hidden_size, dropout=args.dropout, freeze_encoder=FREEZE_ENCODER)
+    model = MolEADMETModel(config, hidden_size=args.hidden_size, dropout=args.dropout, task_type=task_type, freeze_encoder=FREEZE_ENCODER)
     
     # Load pretrained weights if checkpoint path is provided
     use_pretrained = False
@@ -1100,11 +1480,12 @@ def main():
     
     # Step 6: Train model
     unfreeze_epoch = UNFREEZE_EPOCH if (FREEZE_ENCODER and GRADUAL_UNFREEZING) else None
-    model = train_mole_model(
+    model = train_admet_model(
         model=model,
         train_dataset=train_dataset,
         valid_dataset=valid_dataset,
         data_module=data_module,
+        task_type=task_type,
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.learning_rate,
@@ -1115,25 +1496,29 @@ def main():
     )
     
     # Step 7: Evaluate model
-    results = evaluate_mole_model(
+    results = evaluate_admet_model(
         model=model,
         train_dataset=train_dataset,
         valid_dataset=valid_dataset,
         test_dataset=test_dataset,
         scaler=scaler,
         data_module=data_module,
-        model_name="MolESolubility",
+        model_name="MolEADMET",
+        property_name=args.property,
+        task_type=task_type,
         save_predictions=True,
         device=device
     )
     
     # Step 8: Print model features and success message
-    print_model_features("MolESolubility", "MolE")
-    print_success_message("MolESolubility", "MolE", use_pretrained=use_pretrained)
+    print_model_features("MolEADMET", "MolE", args.property, task_type)
+    print_success_message("MolEADMET", "MolE", args.property, task_type, use_pretrained=use_pretrained)
     
     # Step 9: Print final results summary
     print(f"\n📊 FINAL RESULTS SUMMARY:")
-    print(f"  Model: MolESolubility")
+    print(f"  Model: MolEADMET")
+    print(f"  Property: {args.property}")
+    print(f"  Task Type: {task_type}")
     print(f"  Architecture: 12-layer DeBERTa Transformer")
     print(f"  Attention Heads: 12")
     print(f"  Hidden Dimension: {args.hidden_size}")
@@ -1144,28 +1529,48 @@ def main():
     print(f"  Training Samples: {results['n_train']}")
     print(f"  Validation Samples: {results['n_valid']}")
     print(f"  Test Samples: {results['n_test']}")
-    print(f"  Validation MAE: {results['valid_mae']:.3f}")
-    print(f"  Test MAE: {results['test_mae']:.3f}")
-    print(f"  Validation RMSE: {results['valid_rmse']:.3f}")
-    print(f"  Test RMSE: {results['test_rmse']:.3f}")
-    print(f"  Validation R²: {results['valid_r2']:.3f}")
-    print(f"  Test R²: {results['test_r2']:.3f}")
+    
+    if task_type == "regression":
+        print(f"  Validation MAE: {results['valid_mae']:.3f}")
+        print(f"  Test MAE: {results['test_mae']:.3f}")
+        print(f"  Validation RMSE: {results['valid_rmse']:.3f}")
+        print(f"  Test RMSE: {results['test_rmse']:.3f}")
+        print(f"  Validation R²: {results['valid_r2']:.3f}")
+        print(f"  Test R²: {results['test_r2']:.3f}")
+    else:
+        print(f"  Validation Accuracy: {results['valid_acc']:.3f}")
+        print(f"  Test Accuracy: {results['test_acc']:.3f}")
+        print(f"  Validation F1: {results['valid_f1']:.3f}")
+        print(f"  Test F1: {results['test_f1']:.3f}")
+        print(f"  Validation AUC: {results['valid_auc']:.3f}")
+        print(f"  Test AUC: {results['test_auc']:.3f}")
     
     print(f"\n🎯 MODEL PERFORMANCE:")
-    if results['test_r2'] > 0.8:
-        print(f"  🏆 Excellent performance (R² > 0.8)")
-    elif results['test_r2'] > 0.6:
-        print(f"  🥇 Good performance (R² > 0.6)")
-    elif results['test_r2'] > 0.4:
-        print(f"  🥈 Moderate performance (R² > 0.4)")
+    if task_type == "regression":
+        if results['test_r2'] > 0.8:
+            print(f"  🏆 Excellent performance (R² > 0.8)")
+        elif results['test_r2'] > 0.6:
+            print(f"  🥇 Good performance (R² > 0.6)")
+        elif results['test_r2'] > 0.4:
+            print(f"  🥈 Moderate performance (R² > 0.4)")
+        else:
+            print(f"  🥉 Basic performance (R² ≤ 0.4)")
     else:
-        print(f"  🥉 Basic performance (R² ≤ 0.4)")
+        if results['test_auc'] > 0.9:
+            print(f"  🏆 Excellent performance (AUC > 0.9)")
+        elif results['test_auc'] > 0.8:
+            print(f"  🥇 Good performance (AUC > 0.8)")
+        elif results['test_auc'] > 0.7:
+            print(f"  🥈 Moderate performance (AUC > 0.7)")
+        else:
+            print(f"  🥉 Basic performance (AUC ≤ 0.7)")
     
     print(f"\n💡 NEXT STEPS:")
     print(f"  • Check the generated CSV files for detailed predictions")
-    print(f"  • The model is saved as 'best_mole_solubility_model.pth'")
+    print(f"  • The model is saved as 'best_mole_admet_model.pth'")
     print(f"  • Consider hyperparameter tuning for further improvements")
     print(f"  • Try different atom environment radii for better representations")
+    print(f"  • Test on other ADMET properties using --property argument")
 
 
 if __name__ == "__main__":
@@ -1173,6 +1578,23 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n\n⚠️  Training interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Error occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    
+
+
+
+if __name__ == "__main__":
+    try:
+        result = main()
+        if result is not None:
+            predictions, metrics = result
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Evaluation interrupted by user")
         sys.exit(1)
     except Exception as e:
         print(f"\n❌ Error occurred: {str(e)}")
