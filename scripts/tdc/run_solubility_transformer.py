@@ -168,20 +168,38 @@ class MolESolubilityModel(nn.Module):
         # Combine missing keys
         all_missing = missing_keys + list(missing_keys_final)
         
-        print(f"✅ Loaded {len(loaded_keys)} pretrained parameters")
-        print(f"   → Encoder parameters: {len([k for k in loaded_keys if 'encoder' in k])}")
-        print(f"   → Head parameters: {len([k for k in loaded_keys if 'solubility_head' in k])}")
+        # Count actual parameter values (not just keys)
+        total_loaded_params = sum(value.numel() for value in filtered_state_dict.values())
+        encoder_params = sum(value.numel() for key, value in filtered_state_dict.items() if 'encoder' in key)
+        head_params = sum(value.numel() for key, value in filtered_state_dict.items() if 'solubility_head' in key)
+        
+        print(f"✅ Loaded {len(loaded_keys)} parameter layers")
+        print(f"   → Total parameter values: {total_loaded_params:,}")
+        print(f"   → Encoder parameters: {encoder_params:,}")
+        print(f"   → Head parameters: {head_params:,}")
         
         if all_missing:
-            print(f"⚠️  Missing keys: {len(all_missing)}")
+            print(f"⚠️  Missing keys ({len(all_missing)}):")
+            for key in all_missing[:10]:  # Show first 10 missing keys
+                print(f"     - {key}")
+            if len(all_missing) > 10:
+                print(f"     ... and {len(all_missing) - 10} more")
+        
         if unexpected_keys:
-            print(f"⚠️  Unexpected keys: {len(unexpected_keys)}")
+            print(f"⚠️  Unexpected keys ({len(unexpected_keys)}):")
+            for key in unexpected_keys[:10]:  # Show first 10 unexpected keys
+                print(f"     - {key}")
+            if len(unexpected_keys) > 10:
+                print(f"     ... and {len(unexpected_keys) - 10} more")
         
         return {
             'loaded_keys': loaded_keys,
             'missing_keys': all_missing,
             'unexpected_keys': unexpected_keys,
-            'total_loaded': len(loaded_keys)
+            'total_loaded': len(loaded_keys),
+            'total_loaded_params': total_loaded_params,
+            'encoder_params': encoder_params,
+            'head_params': head_params
         }
     
     def forward(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -376,12 +394,20 @@ def create_mole_datasets(train_subset, test_subset, input_vocab_path: str, targe
     """Create datasets for solubility prediction using MolE tokenization"""
     print("\n4. Creating MolE datasets...")
     
-    # Create data module for tokenization
-    # We need to provide some dummy data for setup, but we'll handle actual data separately
-    dummy_smiles = ["CCO", "CCCO", "CCCC"]  # Simple SMILES for setup
+    # Prepare data first
+    train_smiles = train_subset['Drug'].values.tolist()
+    test_smiles = test_subset['Drug'].values.tolist()
     
+    train_labels = train_subset[target_col].values.astype(float)
+    test_labels = test_subset[target_col].values.astype(float)
+    
+    print(f"Preparing datasets:")
+    print(f"  Training SMILES: {len(train_smiles)}")
+    print(f"  Test SMILES: {len(test_smiles)}")
+    
+    # Create data module for tokenization with actual training data
     data_module = CrossEnvDataModule(
-        train_data=dummy_smiles,
+        train_data=train_smiles,  # Use actual training data instead of dummy data
         input_vocab_path=input_vocab_path,
         target_vocab_path=target_vocab_path,
         input_radius=0,
@@ -395,13 +421,6 @@ def create_mole_datasets(train_subset, test_subset, input_vocab_path: str, targe
     
     # Setup data module to get tokenizers
     data_module.setup("fit")
-    
-    # Prepare data
-    train_smiles = train_subset['Drug'].values.tolist()
-    test_smiles = test_subset['Drug'].values.tolist()
-    
-    train_labels = train_subset[target_col].values.astype(float)
-    test_labels = test_subset[target_col].values.astype(float)
     
     # Use RobustScaler for better outlier handling
     scaler = RobustScaler()
@@ -557,8 +576,7 @@ def train_mole_model(model, train_dataset, test_dataset, data_module,
         
         scheduler.step(avg_test_loss)
         
-        if epoch % 5 == 0:
-            print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Test Loss: {avg_test_loss:.4f}")
+        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Test Loss: {avg_test_loss:.4f}")
         
         # Early stopping
         if avg_test_loss < best_test_loss:
@@ -938,7 +956,9 @@ def main():
             loading_stats = model.load_pretrained_weights(args.checkpoint_path)
             use_pretrained = True
             print(f"✅ Successfully loaded pretrained weights")
-            print(f"   → Total loaded parameters: {loading_stats['total_loaded']}")
+            print(f"   → Total loaded parameter values: {loading_stats['total_loaded_params']:,}")
+            print(f"   → Encoder parameter values: {loading_stats['encoder_params']:,}")
+            print(f"   → Head parameter values: {loading_stats['head_params']:,}")
         else:
             print(f"⚠️  Checkpoint not found: {args.checkpoint_path}")
             print("   → Proceeding with training from scratch")
