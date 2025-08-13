@@ -25,6 +25,7 @@ from sklearn.metrics import (
 from sklearn.preprocessing import RobustScaler
 from typing import List, Optional, Dict, Any
 import pickle
+import uuid
 
 # Suppress RDKit warnings about hydrogen atoms
 import warnings
@@ -49,7 +50,7 @@ except ImportError:
 class ADMETPredictionHead(nn.Module):
     """ADMET prediction head for MolE model (supports both regression and classification)"""
     
-    def __init__(self, hidden_size: int = 768, dropout: float = 0.1, task_type: str = "regression"):
+    def __init__(self, hidden_size: int = 768, dropout: float = 0.3, task_type: str = "regression"):
         super().__init__()
         self.task_type = task_type
         
@@ -316,7 +317,7 @@ def detect_task_type(labels: np.ndarray) -> str:
         return "regression"
 
 
-def load_admet_data(property_name: str):
+def load_admet_data(property_name: str, seed: int = 3):
     """Load TDC ADMET dataset with proper train/validation/test split"""
     if not tdc_available:
         print("TDC not available. Install with: pip install PyTDC")
@@ -339,7 +340,7 @@ def load_admet_data(property_name: str):
         
         # Get train/valid split (using seed 42 for consistency)
         train, valid = group.get_train_valid_split(
-            benchmark=name, split_type="default", seed=42
+            benchmark=name, split_type="default", seed=seed
         )
         
         print(f"Training set: {len(train)} samples")
@@ -571,13 +572,39 @@ def create_mole_config():
     from DeBERTa.deberta.config import ModelConfig
     
     # Create DeBERTa configuration (matching the pretrained model)
+    # deberta_config = {
+    #     "attention_head": 12,
+    #     "hidden_size": 768,
+    #     "intermediate_size": 3072,
+    #     "max_position_embeddings": 512,
+    #     "num_hidden_layers": 12,
+    #     "num_attention_heads": 12,
+    #     "type_vocab_size": 0,
+    #     "vocab_size": 173,  # Input vocabulary size
+    #     "norm_rel_ebd": "layer_norm",
+    #     "position_biased_input": False,
+    #     "pos_att_type": "p2c|c2p",
+    #     "relative_attention": True,
+    #     "max_relative_positions": 128,
+    #     "layer_norm_eps": 1e-7,
+    #     "dropout": 0.1,
+    #     "attention_dropout": 0.1,
+    #     "hidden_dropout_prob": 0.1,
+    #     "initializer_range": 0.02,
+    #     "summary_type": "first",
+    #     "summary_use_proj": True,
+    #     "summary_activation": "gelu",
+    #     "summary_last_dropout": 0.1,
+    # }
+
+
     deberta_config = {
-        "attention_head": 12,
+        "attention_head": 6,
         "hidden_size": 768,
-        "intermediate_size": 3072,
-        "max_position_embeddings": 512,
-        "num_hidden_layers": 12,
-        "num_attention_heads": 12,
+        "intermediate_size": 1028,
+        "max_position_embeddings": 256,
+        "num_hidden_layers": 6,
+        "num_attention_heads": 6,
         "type_vocab_size": 0,
         "vocab_size": 173,  # Input vocabulary size
         "norm_rel_ebd": "layer_norm",
@@ -714,7 +741,8 @@ def collate_fn(batch):
 def train_admet_model(model, train_dataset, valid_dataset, data_module, task_type,
                      epochs=30, batch_size=16, learning_rate=1e-4,
                      device='cuda' if torch.cuda.is_available() else 'cpu',
-                     unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1, accumulate_grad_batches=1):
+                     unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1, accumulate_grad_batches=1,
+                     head_weight_decay=1e-4, grad_clip_norm=0.5):
     """Train the MolE ADMET model (from scratch or with pretrained weights)"""
     training_type = "fine-tuning" if unfreeze_encoder_epoch is not None else "from scratch"
     print(f"\n6. Training MolE ADMET model ({training_type}) on {device}...")
@@ -725,6 +753,8 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
     print(f"   → Task type: {task_type}")
     print(f"   → Gradient accumulation: {accumulate_grad_batches} batches")
     print(f"   → Effective batch size: {batch_size * accumulate_grad_batches}")
+    print(f"   → Training compounds: {len(train_dataset):,}")
+    print(f"   → Validation compounds: {len(valid_dataset):,}")
     
     # Create data loaders with custom collate function
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
@@ -739,8 +769,14 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
     else:  # classification
         criterion = nn.CrossEntropyLoss()
     
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+    # Use higher weight decay for prediction head to restrain it more
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=head_weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+    
+    # Generate unique model ID for this training run
+    model_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID
+    model_filename = f'best_mole_admet_model_{model_id}.pth'
+    print(f"   → Model will be saved as: {model_filename}")
     
     # Training loop
     best_valid_loss = float('inf')
@@ -765,7 +801,8 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
                     else:
                         param_groups.append({'params': param, 'lr': head_lr})
             
-            optimizer = optim.AdamW(param_groups, weight_decay=1e-5)
+            # Use higher weight decay for prediction head to restrain it more
+            optimizer = optim.AdamW(param_groups, weight_decay=head_weight_decay)
             print(f"   → Encoder unfrozen with differential learning rates:")
             print(f"     - Encoder LR: {encoder_lr:.2e}")
             print(f"     - Head LR: {head_lr:.2e}")
@@ -797,8 +834,8 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
             # Backward pass
             loss.backward()
             
-            # Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            # Gradient clipping - use tighter clipping for prediction head
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip_norm)
             
             # Update weights every accumulate_grad_batches steps
             if (batch_idx + 1) % accumulate_grad_batches == 0:
@@ -828,19 +865,28 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
                 
                 valid_loss += loss.item()
         
+        # Calculate total number of compounds processed
+        total_train_compounds = len(train_dataset)
+        total_valid_compounds = len(valid_dataset)
+        
+        # Calculate average losses per compound
         avg_train_loss = train_loss / len(train_loader)
         avg_valid_loss = valid_loss / len(valid_loader)
         
+        # Calculate normalized losses per compound
+        train_loss_per_compound = avg_train_loss
+        valid_loss_per_compound = avg_valid_loss
+        
         scheduler.step(avg_valid_loss)
         
-        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f}, Validation Loss: {avg_valid_loss:.4f}")
+        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {train_loss:.4f} (per compound: {train_loss_per_compound:.4f}), Validation Loss: {valid_loss:.4f} (per compound: {valid_loss_per_compound:.4f})")
         
         # Early stopping
         if avg_valid_loss < best_valid_loss:
             best_valid_loss = avg_valid_loss
             patience_counter = 0
-            # Save best model
-            torch.save(model.state_dict(), 'best_mole_admet_model.pth')
+            # Save best model with unique ID
+            torch.save(model.state_dict(), model_filename)
         else:
             patience_counter += 1
             if patience_counter >= patience:
@@ -848,8 +894,9 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
                 break
     
     # Load best model
-    model.load_state_dict(torch.load('best_mole_admet_model.pth'))
+    model.load_state_dict(torch.load(model_filename))
     print(f"Training completed. Best validation loss: {best_valid_loss:.4f}")
+    print(f"Best model saved as: {model_filename}")
     
     return model
 
@@ -1310,6 +1357,26 @@ def parse_args():
         default=0.1,
         help="Dropout probability"
     )
+    parser.add_argument(
+        "--head_weight_decay",
+        type=float,
+        default=1e-4,
+        help="Weight decay for prediction head (higher = more restraint)"
+    )
+    parser.add_argument(
+        "--grad_clip_norm",
+        type=float,
+        default=0.5,
+        help="Gradient clipping norm (lower = more restraint)"
+    )
+    
+    # Data splitting arguments
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for train/validation split (default: 42)"
+    )
     
     return parser.parse_args()
 
@@ -1393,6 +1460,9 @@ def main():
     print(f"   Learning rate: {args.learning_rate}")
     print(f"   Hidden size: {args.hidden_size}")
     print(f"   Dropout: {args.dropout}")
+    print(f"   Head weight decay: {args.head_weight_decay}")
+    print(f"   Gradient clip norm: {args.grad_clip_norm}")
+    print(f"   Random seed: {args.seed}")
     
     if FREEZE_ENCODER:
         print("   → Only prediction head parameters will be trained initially")
@@ -1416,7 +1486,7 @@ def main():
     
     # Step 1: Load data
     print("\n1. Loading ADMET dataset...")
-    train_df, valid_df, test_df = load_admet_data(args.property)
+    train_df, valid_df, test_df = load_admet_data(args.property, seed=args.seed)
     
     if train_df is None or valid_df is None or test_df is None:
         print("❌ Failed to load data. Exiting.")
@@ -1492,7 +1562,9 @@ def main():
         device=device,
         unfreeze_encoder_epoch=unfreeze_epoch,
         encoder_lr_ratio=args.encoder_lr_ratio,
-        accumulate_grad_batches=args.accumulate_grad_batches
+        accumulate_grad_batches=args.accumulate_grad_batches,
+        head_weight_decay=args.head_weight_decay,
+        grad_clip_norm=args.grad_clip_norm
     )
     
     # Step 7: Evaluate model
@@ -1567,7 +1639,7 @@ def main():
     
     print(f"\n💡 NEXT STEPS:")
     print(f"  • Check the generated CSV files for detailed predictions")
-    print(f"  • The model is saved as 'best_mole_admet_model.pth'")
+    print(f"  • The model is saved with unique ID to prevent overwriting")
     print(f"  • Consider hyperparameter tuning for further improvements")
     print(f"  • Try different atom environment radii for better representations")
     print(f"  • Test on other ADMET properties using --property argument")

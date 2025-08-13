@@ -280,64 +280,64 @@ class SMILESDataset(Dataset):
         }
 
 
-# def load_solubility_data():
-#     """Load TDC AqSolDB solubility dataset with proper train/validation/test split"""
-#     if not tdc_available:
-#         print("TDC not available. Install with: pip install PyTDC")
-#         return None, None, None
-    
-#     print("Loading TDC AqSolDB solubility dataset...")
-#     data = ADME(name='Solubility_AqSolDB')
-#     split = data.get_split()
-    
-#     # Use original splits: train for training, valid for validation, test for final evaluation
-#     train_data = split['train']
-#     valid_data = split['valid'] 
-#     test_data = split['test']
-    
-#     print(f"Training set: {len(train_data)} samples")
-#     print(f"Validation set: {len(valid_data)} samples")
-#     print(f"Test set: {len(test_data)} samples")
-    
-#     return train_data, valid_data, test_data
-
-def load_solubility_data(property_name: str = 'Solubility_AqSolDB'):
-    """Load TDC ADMET dataset with proper train/validation/test split"""
-    from tdc.benchmark_group import admet_group
-
+def load_solubility_data():
+    """Load TDC AqSolDB solubility dataset with proper train/validation/test split"""
     if not tdc_available:
         print("TDC not available. Install with: pip install PyTDC")
         return None, None, None
     
-    print(f"Loading TDC ADMET dataset for property: {property_name}")
+    print("Loading TDC AqSolDB solubility dataset...")
+    data = ADME(name='Solubility_AqSolDB')
+    split = data.get_split('scaffold', seed = 42, frac = [0.5, 0.3, 0.2])
     
-    try:
-        # Initialize TDC benchmark group
-        group = admet_group(path="data/")
+    # Use original splits: train for training, valid for validation, test for final evaluation
+    train_data = split['train']
+    valid_data = split['valid'] 
+    test_data = split['test']
+    
+    print(f"Training set: {len(train_data)} samples")
+    print(f"Validation set: {len(valid_data)} samples")
+    print(f"Test set: {len(test_data)} samples")
+    
+    return train_data, valid_data, test_data
+
+# def load_solubility_data(property_name: str = 'Solubility_AqSolDB'):
+#     """Load TDC ADMET dataset with proper train/validation/test split"""
+#     from tdc.benchmark_group import admet_group
+
+#     if not tdc_available:
+#         print("TDC not available. Install with: pip install PyTDC")
+#         return None, None, None
+    
+#     print(f"Loading TDC ADMET dataset for property: {property_name}")
+    
+#     try:
+#         # Initialize TDC benchmark group
+#         group = admet_group(path="data/")
         
-        # Get benchmark
-        benchmark = group.get(property_name)
-        name = benchmark["name"]
-        train_val, test = benchmark["train_val"], benchmark["test"]
+#         # Get benchmark
+#         benchmark = group.get(property_name)
+#         name = benchmark["name"]
+#         train_val, test = benchmark["train_val"], benchmark["test"]
         
-        print(f"Benchmark: {name}")
-        print(f"Train+Val set: {len(train_val)} samples")
-        print(f"Test set: {len(test)} samples")
+#         print(f"Benchmark: {name}")
+#         print(f"Train+Val set: {len(train_val)} samples")
+#         print(f"Test set: {len(test)} samples")
         
-        # Get train/valid split (using seed 42 for consistency)
-        train, valid = group.get_train_valid_split(
-            benchmark=name, split_type="default", seed=42
-        )
+#         # Get train/valid split (using seed 42 for consistency)
+#         train, valid = group.get_train_valid_split(
+#             benchmark=name, split_type="default", seed=42
+#         )
         
-        print(f"Training set: {len(train)} samples")
-        print(f"Validation set: {len(valid)} samples")
-        print(f"Test set: {len(test)} samples")
+#         print(f"Training set: {len(train)} samples")
+#         print(f"Validation set: {len(valid)} samples")
+#         print(f"Test set: {len(test)} samples")
         
-        return train, valid, test
+#         return train, valid, test
         
-    except Exception as e:
-        print(f"Error loading ADMET data for property '{property_name}': {e}")
-        return None, None, None
+#     except Exception as e:
+#         print(f"Error loading ADMET data for property '{property_name}': {e}")
+#         return None, None, None
 
 
 def filter_outliers(df, target_col, n_std=3):
