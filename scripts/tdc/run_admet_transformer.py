@@ -567,7 +567,7 @@ def preprocess_admet_data(train_df, valid_df, test_df, target_col='Y', use_max_s
     return train_subset, valid_subset, test_subset, task_type
 
 
-def create_mole_config():
+def create_mole_config(hidden_size=256):
     """Create MolE configuration with same parameters as pretrained model"""
     from DeBERTa.deberta.config import ModelConfig
     
@@ -599,12 +599,12 @@ def create_mole_config():
 
 
     deberta_config = {
-        "attention_head": 6,
-        "hidden_size": 768,
-        "intermediate_size": 1028,
-        "max_position_embeddings": 256,
+        "attention_head": 8,
+        "hidden_size": hidden_size,
+        "intermediate_size": hidden_size * 4,  # Scale intermediate size with hidden size
+        "max_position_embeddings": 128,
         "num_hidden_layers": 6,
-        "num_attention_heads": 6,
+        "num_attention_heads": 8,
         "type_vocab_size": 0,
         "vocab_size": 173,  # Input vocabulary size
         "norm_rel_ebd": "layer_norm",
@@ -612,8 +612,8 @@ def create_mole_config():
         "pos_att_type": "p2c|c2p",
         "relative_attention": True,
         "max_relative_positions": 128,
-        "layer_norm_eps": 1e-7,
-        "dropout": 0.1,
+        "layer_norm_eps": 1e-6,
+        "dropout": 0.3,
         "attention_dropout": 0.1,
         "hidden_dropout_prob": 0.1,
         "initializer_range": 0.02,
@@ -742,7 +742,7 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
                      epochs=30, batch_size=16, learning_rate=1e-4,
                      device='cuda' if torch.cuda.is_available() else 'cpu',
                      unfreeze_encoder_epoch=None, encoder_lr_ratio=0.1, accumulate_grad_batches=1,
-                     head_weight_decay=1e-4, grad_clip_norm=0.5):
+                     weight_decay=0.01, grad_clip_norm=1.0):
     """Train the MolE ADMET model (from scratch or with pretrained weights)"""
     training_type = "fine-tuning" if unfreeze_encoder_epoch is not None else "from scratch"
     print(f"\n6. Training MolE ADMET model ({training_type}) on {device}...")
@@ -769,8 +769,7 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
     else:  # classification
         criterion = nn.CrossEntropyLoss()
     
-    # Use higher weight decay for prediction head to restrain it more
-    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=head_weight_decay)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
     
     # Generate unique model ID for this training run
@@ -801,8 +800,7 @@ def train_admet_model(model, train_dataset, valid_dataset, data_module, task_typ
                     else:
                         param_groups.append({'params': param, 'lr': head_lr})
             
-            # Use higher weight decay for prediction head to restrain it more
-            optimizer = optim.AdamW(param_groups, weight_decay=head_weight_decay)
+            optimizer = optim.AdamW(param_groups, weight_decay=weight_decay)
             print(f"   → Encoder unfrozen with differential learning rates:")
             print(f"     - Encoder LR: {encoder_lr:.2e}")
             print(f"     - Head LR: {head_lr:.2e}")
@@ -1378,6 +1376,13 @@ def parse_args():
         help="Random seed for train/validation split (default: 42)"
     )
     
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=0.01,
+        help="Weight decay for L2 regularization"
+    )
+    
     return parser.parse_args()
 
 
@@ -1499,7 +1504,7 @@ def main():
     
     # Step 3: Create MolE configuration
     print("\n3. Creating MolE configuration...")
-    config = create_mole_config()
+    config = create_mole_config(hidden_size=args.hidden_size)
     print(f"✅ MolE configuration created:")
     print(f"  Hidden size: {config.hidden_size}")
     print(f"  Layers: {config.num_hidden_layers}")
@@ -1563,8 +1568,8 @@ def main():
         unfreeze_encoder_epoch=unfreeze_epoch,
         encoder_lr_ratio=args.encoder_lr_ratio,
         accumulate_grad_batches=args.accumulate_grad_batches,
-        head_weight_decay=args.head_weight_decay,
-        grad_clip_norm=args.grad_clip_norm
+        weight_decay=args.weight_decay,
+        grad_clip_norm=1.0
     )
     
     # Step 7: Evaluate model
