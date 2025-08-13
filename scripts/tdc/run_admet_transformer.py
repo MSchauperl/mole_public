@@ -1660,21 +1660,4 @@ if __name__ == "__main__":
         print(f"\n❌ Error occurred: {str(e)}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
-    
-
-
-
-if __name__ == "__main__":
-    try:
-        result = main()
-        if result is not None:
-            predictions, metrics = result
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Evaluation interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n❌ Error occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
         sys.exit(1) 
