@@ -5,6 +5,7 @@ ChemBL Filtered Dataset Training Script
 Train on the filtered ChemBL dataset containing:
 - Top 10 targets with the most measurements
 - Only compounds with ≥3 target measurements (84,413 compounds)
+- Uses fold-based training/validation splits for proper cross-validation
 
 This provides a high-quality, focused dataset for efficient training
 and better convergence compared to the full sparse dataset.
@@ -17,9 +18,9 @@ def main():
     """Main training function for filtered ChemBL dataset."""
     run_chembl_training(
         config_class=FilteredChemBLConfig,
-        title="ChemBL Filtered Dataset Training (Top 10 Targets)",
+        title="ChemBL Filtered Dataset Training (Top 10 Targets, Fold-based Splits)",
     )
 
 
 if __name__ == "__main__":
-    main() 
+    main()

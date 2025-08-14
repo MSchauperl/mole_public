@@ -9,6 +9,11 @@ Filtering criteria:
 - Top 10 targets by measurement count
 - Compounds with measurements for ≥3 targets
 
+Split information:
+- Training: 58815 compounds
+- Validation: 25598 compounds
+- Total: 84413 compounds
+
 Selected targets:
    1. CHEMBL1794483 - Original:  86690, Filtered:  29799
    2. CHEMBL1794345 - Original:  83237, Filtered:  38971

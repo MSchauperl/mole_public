@@ -14,8 +14,12 @@ import argparse
 import logging
 import os
 import sys
+import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# Suppress RDKit deprecation warnings
+warnings.filterwarnings("ignore", message=".*please use MorganGenerator.*")
 
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import (
@@ -52,7 +56,7 @@ def get_arg_parser():
         help="Path to ChemBL SMILES pickle file",
     )
     parser.add_argument(
-        "--chembl_labels_path", 
+        "--chembl_labels_path",
         type=str,
         required=True,
         help="Path to ChemBL labels sparse matrix pickle file",
@@ -122,7 +126,10 @@ def get_arg_parser():
         "--dropout", type=float, default=0.1, help="Dropout probability"
     )
     parser.add_argument(
-        "--classifier_dropout", type=float, default=0.1, help="Classifier dropout probability"
+        "--classifier_dropout",
+        type=float,
+        default=0.1,
+        help="Classifier dropout probability",
     )
     parser.add_argument(
         "--label_smoothing", type=float, default=0.0, help="Label smoothing factor"
@@ -153,9 +160,7 @@ def get_arg_parser():
     parser.add_argument(
         "--learning_rate", type=float, default=1e-4, help="Learning rate"
     )
-    parser.add_argument(
-        "--weight_decay", type=float, default=0.01, help="Weight decay"
-    )
+    parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay")
     parser.add_argument(
         "--warmup_steps", type=int, default=5000, help="Number of warmup steps"
     )
@@ -166,13 +171,28 @@ def get_arg_parser():
         "--patience", type=int, default=5, help="Early stopping patience"
     )
     parser.add_argument(
-        "--validation_split", type=float, default=0.1, help="Validation split ratio"
+        "--validation_split",
+        type=float,
+        default=0.1,
+        help="Validation split ratio (used only if split_indices_path is None)",
     )
     parser.add_argument(
-        "--test_split", type=float, default=0.1, help="Test split ratio"
+        "--test_split",
+        type=float,
+        default=0.1,
+        help="Test split ratio (used only if split_indices_path is None)",
     )
     parser.add_argument(
-        "--val_check_interval", type=float, default=0.5, help="Validation check interval"
+        "--split_indices_path",
+        type=str,
+        default=None,
+        help="Path to pickle file containing train/val split indices",
+    )
+    parser.add_argument(
+        "--val_check_interval",
+        type=float,
+        default=0.5,
+        help="Validation check interval",
     )
 
     # Loss weighting arguments
@@ -180,7 +200,10 @@ def get_arg_parser():
         "--mlm_loss_weight", type=float, default=1.0, help="Weight for MLM loss"
     )
     parser.add_argument(
-        "--classification_loss_weight", type=float, default=1.0, help="Weight for classification loss"
+        "--classification_loss_weight",
+        type=float,
+        default=1.0,
+        help="Weight for classification loss",
     )
     parser.add_argument(
         "--chembl_only",
@@ -193,10 +216,16 @@ def get_arg_parser():
         "--mask_prob", type=float, default=0.15, help="Probability of masking a token"
     )
     parser.add_argument(
-        "--replace_prob", type=float, default=0.8, help="Probability of replacing with [MASK]"
+        "--replace_prob",
+        type=float,
+        default=0.8,
+        help="Probability of replacing with [MASK]",
     )
     parser.add_argument(
-        "--random_prob", type=float, default=0.1, help="Probability of replacing with random token"
+        "--random_prob",
+        type=float,
+        default=0.1,
+        help="Probability of replacing with random token",
     )
     parser.add_argument(
         "--max_length", type=int, default=None, help="Maximum sequence length"
@@ -206,9 +235,7 @@ def get_arg_parser():
     )
 
     # Hardware arguments
-    parser.add_argument(
-        "--gpus", type=int, default=1, help="Number of GPUs to use"
-    )
+    parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use")
     parser.add_argument(
         "--num_workers", type=int, default=4, help="Number of data loading workers"
     )
@@ -216,7 +243,10 @@ def get_arg_parser():
         "--precision", type=str, default="32", help="Training precision"
     )
     parser.add_argument(
-        "--accumulate_grad_batches", type=int, default=1, help="Gradient accumulation steps"
+        "--accumulate_grad_batches",
+        type=int,
+        default=1,
+        help="Gradient accumulation steps",
     )
     parser.add_argument(
         "--gradient_clip_val", type=float, default=1.0, help="Gradient clipping value"
@@ -226,9 +256,7 @@ def get_arg_parser():
     parser.add_argument(
         "--output_dir", type=str, required=True, help="Output directory"
     )
-    parser.add_argument(
-        "--model_name", type=str, required=True, help="Model name"
-    )
+    parser.add_argument("--model_name", type=str, required=True, help="Model name")
     parser.add_argument(
         "--resume_from_checkpoint",
         type=str,
@@ -242,21 +270,22 @@ def get_arg_parser():
     )
 
     # Miscellaneous arguments
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed"
-    )
-    parser.add_argument(
-        "--log_predictions", action="store_true", help="Log predictions during validation"
+        "--log_predictions",
+        action="store_true",
+        help="Log predictions during validation",
     )
     parser.add_argument(
         "--log_target_metrics", action="store_true", help="Log per-target metrics"
     )
     parser.add_argument(
-        "--max_targets_to_log", type=int, default=50, help="Maximum targets to log individually"
+        "--max_targets_to_log",
+        type=int,
+        default=50,
+        help="Maximum targets to log individually",
     )
-    parser.add_argument(
-        "--debug", action="store_true", help="Enable debug logging"
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     return parser
 
@@ -269,10 +298,10 @@ def parse_args():
     # Validation
     if not (0 <= args.validation_split <= 1):
         raise ValueError("validation_split must be between 0 and 1")
-    
+
     if not (0 <= args.test_split <= 1):
         raise ValueError("test_split must be between 0 and 1")
-        
+
     if args.validation_split + args.test_split >= 1:
         raise ValueError("validation_split + test_split must be < 1")
 
@@ -303,39 +332,47 @@ def create_model_config(args) -> Dict[str, Any]:
     }
 
 
-def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Dict[str, int], target_info: Dict[str, Any], output_dir: Path):
+def save_chembl_config_files(
+    args,
+    model_config: Dict[str, Any],
+    vocab_sizes: Dict[str, int],
+    target_info: Dict[str, Any],
+    output_dir: Path,
+):
     """Save configuration files for ChemBL training."""
     import json
-    
+
     # Save model configuration
     model_config_with_vocab = model_config.copy()
-    model_config_with_vocab.update({
-        "input_vocab_size": vocab_sizes["input_vocab_size"],
-        "target_vocab_size": vocab_sizes["target_vocab_size"],
-        "num_targets": target_info["num_targets"],
-    })
-    
+    model_config_with_vocab.update(
+        {
+            "input_vocab_size": vocab_sizes["input_vocab_size"],
+            "target_vocab_size": vocab_sizes["target_vocab_size"],
+            "num_targets": target_info["num_targets"],
+        }
+    )
+
     model_config_path = output_dir / "model_config.json"
-    with open(model_config_path, 'w') as f:
+    with open(model_config_path, "w") as f:
         json.dump(model_config_with_vocab, f, indent=2)
-    
+
     # Save training arguments
     args_dict = vars(args)
     # Convert Path objects to strings for JSON serialization
     for key, value in args_dict.items():
         if isinstance(value, Path):
             args_dict[key] = str(value)
-    
+
     args_config_path = output_dir / "training_args.json"
-    with open(args_config_path, 'w') as f:
+    with open(args_config_path, "w") as f:
         json.dump(args_dict, f, indent=2)
-    
+
     # Save a human-readable summary
     summary_path = output_dir / "training_summary.txt"
-    with open(summary_path, 'w') as f:
+    with open(summary_path, "w") as f:
         f.write("ChemBL MLM Training Summary\n")
         f.write("=" * 50 + "\n\n")
-        
+
         f.write("DATA CONFIGURATION:\n")
         f.write(f"  ChemBL SMILES: {args.chembl_smiles_path}\n")
         f.write(f"  ChemBL labels: {args.chembl_labels_path}\n")
@@ -353,7 +390,7 @@ def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Di
         f.write(f"  Target radius: {args.target_radius}\n")
         f.write(f"  Input use features: {args.input_use_features}\n")
         f.write(f"  Target use features: {args.target_use_features}\n\n")
-        
+
         f.write("MODEL CONFIGURATION:\n")
         f.write(f"  Hidden size: {args.hidden_size}\n")
         f.write(f"  Number of layers: {args.num_hidden_layers}\n")
@@ -361,7 +398,7 @@ def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Di
         f.write(f"  Intermediate size: {args.intermediate_size}\n")
         f.write(f"  Dropout: {args.dropout}\n")
         f.write(f"  Classifier dropout: {args.classifier_dropout}\n\n")
-        
+
         f.write("MLM CONFIGURATION:\n")
         f.write(f"  Mask probability: {args.mask_prob}\n")
         f.write(f"  Replace probability: {args.replace_prob}\n")
@@ -369,7 +406,7 @@ def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Di
         f.write(f"  Max length: {args.max_length or 'No limit'}\n")
         f.write(f"  Use CLS token: {not args.no_cls_token}\n")
         f.write(f"  ChemBL only mode: {args.chembl_only}\n\n")
-        
+
         f.write("TRAINING CONFIGURATION:\n")
         f.write(f"  Batch size: {args.batch_size}\n")
         f.write(f"  Learning rate: {args.learning_rate}\n")
@@ -379,20 +416,22 @@ def save_chembl_config_files(args, model_config: Dict[str, Any], vocab_sizes: Di
         f.write(f"  Validation split: {args.validation_split}\n")
         f.write(f"  Test split: {args.test_split}\n")
         f.write(f"  Patience: {args.patience}\n")
-        
-        if hasattr(args, 'mlm_loss_weight'):
+
+        if hasattr(args, "mlm_loss_weight"):
             f.write(f"  MLM loss weight: {args.mlm_loss_weight}\n")
-        if hasattr(args, 'classification_loss_weight'):
-            f.write(f"  Classification loss weight: {args.classification_loss_weight}\n")
+        if hasattr(args, "classification_loss_weight"):
+            f.write(
+                f"  Classification loss weight: {args.classification_loss_weight}\n"
+            )
         f.write("\n")
-        
+
         f.write("HARDWARE CONFIGURATION:\n")
         f.write(f"  GPUs: {args.gpus}\n")
         f.write(f"  Precision: {args.precision}\n")
         f.write(f"  Number of workers: {args.num_workers}\n")
         f.write(f"  Gradient accumulation: {args.accumulate_grad_batches}\n")
         f.write(f"  Gradient clipping: {args.gradient_clip_val}\n\n")
-        
+
         f.write("OUTPUT CONFIGURATION:\n")
         f.write(f"  Output directory: {output_dir}\n")
         f.write(f"  Model name: {args.model_name}\n")
@@ -442,6 +481,7 @@ def main():
         max_targets=args.max_targets,
         min_target_activity=args.min_target_activity,
         max_samples=args.max_samples,
+        split_indices_path=args.split_indices_path,
         input_radius=args.input_radius,
         target_radius=args.target_radius,
         input_use_features=args.input_use_features,
@@ -467,7 +507,7 @@ def main():
 
     # Create model configuration
     model_config = create_model_config(args)
-    
+
     # Save configuration files
     logger.info("Saving configuration files...")
     save_chembl_config_files(args, model_config, vocab_sizes, target_info, output_dir)
@@ -485,10 +525,14 @@ def main():
 
     # Create Lightning module
     logger.info("Creating Lightning module...")
-    
+
     # Calculate total training steps for scheduler
-    total_samples = len(data_module._load_chembl_smiles()) * (1 - args.validation_split - args.test_split)
-    steps_per_epoch = max(1, int(total_samples // (args.batch_size * args.accumulate_grad_batches)))
+    total_samples = len(data_module._load_chembl_smiles()) * (
+        1 - args.validation_split - args.test_split
+    )
+    steps_per_epoch = max(
+        1, int(total_samples // (args.batch_size * args.accumulate_grad_batches))
+    )
     total_steps = steps_per_epoch * args.max_epochs
 
     optimizer_cfg = {
@@ -553,7 +597,7 @@ def main():
 
     # Create trainer
     logger.info("Creating trainer...")
-    
+
     # Handle devices configuration
     if args.gpus > 0:
         devices = args.gpus
@@ -564,8 +608,10 @@ def main():
         accelerator = "cpu"
         precision = "32"  # Force 32-bit precision for CPU
         if args.precision != "32":
-            logger.warning(f"Overriding precision from {args.precision} to 32 for CPU training")
-    
+            logger.warning(
+                f"Overriding precision from {args.precision} to 32 for CPU training"
+            )
+
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
         devices=devices,
@@ -584,7 +630,7 @@ def main():
     # Handle encoder freezing if requested
     if args.freeze_encoder:
         logger.info("Freezing encoder layers for fine-tuning...")
-        if hasattr(lightning_model.model, 'encoder'):
+        if hasattr(lightning_model.model, "encoder"):
             for param in lightning_model.model.encoder.parameters():
                 param.requires_grad = False
             logger.info("Encoder layers frozen.")
@@ -597,34 +643,44 @@ def main():
         logger.info(f"Loading pretrained weights from: {args.resume_from_checkpoint}")
         # Load checkpoint with strict=False to handle missing classification head
         import torch
-        checkpoint = torch.load(args.resume_from_checkpoint, map_location='cpu')
-        if 'state_dict' in checkpoint:
+
+        checkpoint = torch.load(args.resume_from_checkpoint, map_location="cpu")
+        if "state_dict" in checkpoint:
             # Filter out keys that don't match (like classification head)
             model_state_dict = lightning_model.state_dict()
             filtered_state_dict = {}
-            
-            for key, value in checkpoint['state_dict'].items():
-                if key in model_state_dict and model_state_dict[key].shape == value.shape:
+
+            for key, value in checkpoint["state_dict"].items():
+                if (
+                    key in model_state_dict
+                    and model_state_dict[key].shape == value.shape
+                ):
                     filtered_state_dict[key] = value
                 else:
                     logger.info(f"Skipping incompatible parameter: {key}")
-            
+
             # Load the filtered state dict
-            missing_keys, unexpected_keys = lightning_model.load_state_dict(filtered_state_dict, strict=False)
-            logger.info(f"Loaded checkpoint with {len(filtered_state_dict)} matching layers")
+            missing_keys, unexpected_keys = lightning_model.load_state_dict(
+                filtered_state_dict, strict=False
+            )
+            logger.info(
+                f"Loaded checkpoint with {len(filtered_state_dict)} matching layers"
+            )
             if missing_keys:
-                logger.info(f"Missing keys (will be randomly initialized): {len(missing_keys)} layers")
+                logger.info(
+                    f"Missing keys (will be randomly initialized): {len(missing_keys)} layers"
+                )
                 for key in missing_keys:
                     logger.debug(f"  - {key}")
             if unexpected_keys:
                 logger.info(f"Unexpected keys (ignored): {len(unexpected_keys)} layers")
-        
+
         trainer.fit(lightning_model, data_module)
     else:
         trainer.fit(lightning_model, data_module)
 
     # Test if test data is available
-    if hasattr(data_module, '_test_smiles'):
+    if hasattr(data_module, "_test_smiles"):
         logger.info("Running final test...")
         trainer.test(lightning_model, data_module)
 
@@ -633,4 +689,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
