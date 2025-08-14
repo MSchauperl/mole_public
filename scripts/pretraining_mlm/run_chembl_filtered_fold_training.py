@@ -21,7 +21,12 @@ from pathlib import Path
 warnings.filterwarnings("ignore", message=".*please use MorganGenerator.*")
 
 
-def run_fold_training(fold: int, output_suffix: str = None):
+def run_fold_training(
+    fold: int, 
+    output_suffix: str = None, 
+    resume_checkpoint: str = None, 
+    freeze_encoder: bool = False
+):
     """Run training for a specific fold."""
 
     # Determine output directory
@@ -118,8 +123,20 @@ def run_fold_training(fold: int, output_suffix: str = None):
         "42",
     ]
 
+    # Add checkpoint resumption if provided
+    if resume_checkpoint:
+        cmd.extend(["--resume_from_checkpoint", resume_checkpoint])
+        if freeze_encoder:
+            cmd.append("--freeze_encoder")
+
     print(f"🚀 Starting training for fold {fold}")
     print(f"📁 Output directory: {output_dir}")
+    if resume_checkpoint:
+        print(f"🔄 Resuming from checkpoint: {resume_checkpoint}")
+        if freeze_encoder:
+            print("🧊 Encoder: FROZEN (fine-tuning mode)")
+        else:
+            print("🔥 Encoder: TRAINABLE (continued pretraining)")
     print(f"🔧 Command: {' '.join(cmd[:10])}...")
     print("=" * 80)
 
@@ -133,15 +150,21 @@ def run_fold_training(fold: int, output_suffix: str = None):
         return False
 
 
-def run_cross_validation():
+def run_cross_validation(resume_checkpoint: str = None, freeze_encoder: bool = False):
     """Run training for all folds to perform cross-validation."""
     print("🔄 Running cross-validation training for all folds...")
+    if resume_checkpoint:
+        print(f"🔄 Resuming from checkpoint: {resume_checkpoint}")
+        if freeze_encoder:
+            print("🧊 Encoder: FROZEN (fine-tuning mode)")
+        else:
+            print("🔥 Encoder: TRAINABLE (continued pretraining)")
     print("=" * 80)
 
     results = {}
     for fold in range(3):
         print(f"\n📊 Training fold {fold}...")
-        success = run_fold_training(fold)
+        success = run_fold_training(fold, resume_checkpoint=resume_checkpoint, freeze_encoder=freeze_encoder)
         results[fold] = success
 
         if not success:
@@ -185,6 +208,17 @@ def main():
         default=None,
         help="Custom suffix for output directory",
     )
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint file to resume training from",
+    )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder layers when resuming from checkpoint (for fine-tuning)",
+    )
 
     args = parser.parse_args()
 
@@ -204,11 +238,19 @@ def main():
 
     if args.cross_validation:
         # Run cross-validation
-        results = run_cross_validation()
+        results = run_cross_validation(
+            resume_checkpoint=args.resume_from_checkpoint,
+            freeze_encoder=args.freeze_encoder
+        )
         return 0 if any(results.values()) else 1
     elif args.fold is not None:
         # Run single fold
-        success = run_fold_training(args.fold, args.output_suffix)
+        success = run_fold_training(
+            args.fold, 
+            args.output_suffix,
+            resume_checkpoint=args.resume_from_checkpoint,
+            freeze_encoder=args.freeze_encoder
+        )
         return 0 if success else 1
     else:
         print("❌ Error: Please specify either --fold or --cross_validation")

@@ -44,14 +44,35 @@ def show_training_examples():
     print("   # Fine-tunes with frozen encoder using fold-based splits")
     print()
 
-    print("4. Cross-validation Training (All Folds):")
+    print("4. Unsupervised Pretraining with Checkpoint Resumption:")
+    print(
+        "   python scripts/pretraining_mlm/run_unsupervised_pretraining_a100_2gpu.py \\"
+    )
+    print(
+        "       --gpus 2 --resume_from_checkpoint outputs/guacamol_unsupervised/last.ckpt"
+    )
+    print("   # Resume unsupervised pretraining from checkpoint")
+    print()
+    print(
+        "   python scripts/pretraining_mlm/run_unsupervised_pretraining_a100_2gpu.py \\"
+    )
+    print(
+        "       --gpus 2 --resume_from_checkpoint outputs/guacamol_unsupervised/best_model.ckpt \\"
+    )
+    print("       --freeze_encoder")
+    print("   # Resume with frozen encoder (fine-tuning)")
+    print()
+
+    print("5. Cross-validation Training (All Folds):")
+
+    print("5. Cross-validation Training (All Folds):")
     print(
         "   python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --cross_validation"
     )
     print("   # Trains on all 3 folds for complete cross-validation")
     print()
 
-    print("5. Single Fold Training:")
+    print("6. Single Fold Training:")
     print(
         "   python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --fold 0"
     )
@@ -64,7 +85,24 @@ def show_training_examples():
     print("   # Train on specific fold (0, 1, or 2)")
     print()
 
-    print("6. Custom Configuration Overrides:")
+    print("7. Checkpoint Resumption:")
+    print("   python scripts/pretraining_mlm/run_chembl_t4_folds.py \\")
+    print("       --resume_from_checkpoint outputs/chembl_mlm_folds/best_model.ckpt")
+    print("   # Resume training from checkpoint")
+    print()
+    print("   python scripts/pretraining_mlm/run_chembl_t4_folds.py \\")
+    print("       --resume_from_checkpoint outputs/chembl_mlm_folds/best_model.ckpt \\")
+    print("       --freeze_encoder")
+    print("   # Resume with frozen encoder (fine-tuning)")
+    print()
+    print("   python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py \\")
+    print(
+        "       --fold 0 --resume_from_checkpoint outputs/chembl_filtered_fold0/best_model.ckpt"
+    )
+    print("   # Resume specific fold training")
+    print()
+
+    print("8. Custom Configuration Overrides:")
     print("   python scripts/pretraining_mlm/run_chembl_t4_folds.py \\")
     print("       --batch_size 16 --learning_rate 2e-4 --max_epochs 50")
     print("   # Override default settings")

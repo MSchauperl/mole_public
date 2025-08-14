@@ -35,6 +35,19 @@ def main():
         help="Use ChemBL-only configuration (no MLM, classification only)",
     )
 
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint file to resume training from",
+    )
+
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder layers when resuming from checkpoint (for fine-tuning)",
+    )
+
     # Parse known args to allow passing through other arguments
     args, unknown_args = parser.parse_known_args()
 
@@ -51,8 +64,13 @@ def main():
         config_class = T4ConfigWithFolds
         title = "ChemBL T4 Training with Fold-based Splits (MLM + Classification)"
 
-    # Run training
-    run_chembl_training(config_class=config_class, title=title)
+    # Run training with optional checkpoint resumption
+    run_chembl_training(
+        config_class=config_class,
+        title=title,
+        pretrained_path=args.resume_from_checkpoint,
+        freeze_encoder=args.freeze_encoder,
+    )
 
 
 if __name__ == "__main__":

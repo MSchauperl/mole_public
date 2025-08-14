@@ -66,6 +66,13 @@ def main():
         help="Use fold-based splits instead of random splits",
     )
 
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to additional checkpoint file to resume training from (in addition to pretrained_path)",
+    )
+
     # Parse known args to allow passing through other arguments
     args, unknown_args = parser.parse_known_args()
 
@@ -94,11 +101,18 @@ def main():
     else:
         title += " - Trainable Encoder"
 
+    # Determine which checkpoint to use
+    checkpoint_path = (
+        args.resume_from_checkpoint
+        if args.resume_from_checkpoint
+        else args.pretrained_path
+    )
+
     # Run fine-tuning
     run_chembl_training(
         config_class=config_class,
         title=title,
-        pretrained_path=args.pretrained_path,
+        pretrained_path=checkpoint_path,
         freeze_encoder=args.freeze_encoder,
     )
 

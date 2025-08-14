@@ -55,6 +55,12 @@ python scripts/pretraining_mlm/run_chembl_finetune_t4.py \
 python scripts/pretraining_mlm/run_chembl_finetune_t4.py \
     --pretrained_path outputs/chembl_only/best_model.ckpt \
     --use_folds --chembl_only
+
+# Resume training from checkpoint
+python scripts/pretraining_mlm/run_chembl_finetune_t4.py \
+    --pretrained_path outputs/chembl_mlm/best_model.ckpt \
+    --resume_from_checkpoint outputs/chembl_mlm_folds/last.ckpt \
+    --use_folds
 ```
 
 **Features**:
@@ -74,12 +80,59 @@ python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --cross_vali
 python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --fold 0
 python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --fold 1
 python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py --fold 2
+
+# Resume specific fold training
+python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py \
+    --fold 0 --resume_from_checkpoint outputs/chembl_filtered_fold0/last.ckpt
 ```
 
 **Features**:
 - Automated cross-validation across all folds
 - Individual fold training
 - Custom output suffixes for each fold
+- Checkpoint resumption support
+
+## Checkpoint Resumption
+
+All training scripts support resuming from checkpoints, which is useful for:
+- Continuing interrupted training runs
+- Fine-tuning from existing models
+- Experimenting with different training configurations
+
+### Basic Checkpoint Resumption
+
+```bash
+# Resume T4 training from checkpoint
+python scripts/pretraining_mlm/run_chembl_t4_folds.py \
+    --resume_from_checkpoint outputs/chembl_mlm_folds/best_model.ckpt
+
+# Resume with frozen encoder (fine-tuning)
+python scripts/pretraining_mlm/run_chembl_t4_folds.py \
+    --resume_from_checkpoint outputs/chembl_mlm_folds/best_model.ckpt \
+    --freeze_encoder
+```
+
+### Fold-specific Checkpoint Resumption
+
+```bash
+# Resume specific fold training
+python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py \
+    --fold 0 --resume_from_checkpoint outputs/chembl_filtered_fold0/last.ckpt
+
+# Resume cross-validation with checkpoint
+python scripts/pretraining_mlm/run_chembl_filtered_fold_training.py \
+    --cross_validation --resume_from_checkpoint outputs/chembl_filtered_fold0/best_model.ckpt
+```
+
+### Fine-tuning with Checkpoint Resumption
+
+```bash
+# Fine-tune with additional checkpoint resumption
+python scripts/pretraining_mlm/run_chembl_finetune_t4.py \
+    --pretrained_path outputs/chembl_mlm/best_model.ckpt \
+    --resume_from_checkpoint outputs/chembl_mlm_folds/last.ckpt \
+    --use_folds --freeze_encoder
+```
 
 ## Configuration Classes
 

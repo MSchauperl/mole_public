@@ -7,6 +7,19 @@ NVIDIA A100 (40GB) GPUs:
 1. Cross-Environment MLM (Radius 0 Structural -> Radius 1 Functional)
 2. ClogP Prediction
 3. Molecular Weight Prediction
+
+Usage examples:
+  # Standard training
+  python run_unsupervised_pretraining_a100_2gpu.py --gpus 2
+  
+  # Resume from checkpoint
+  python run_unsupervised_pretraining_a100_2gpu.py --gpus 2 \
+      --resume_from_checkpoint outputs/guacamol_unsupervised_pretraining_a100_1gpu/last.ckpt
+  
+  # Resume with frozen encoder (fine-tuning)
+  python run_unsupervised_pretraining_a100_2gpu.py --gpus 2 \
+      --resume_from_checkpoint outputs/guacamol_unsupervised_pretraining_a100_1gpu/best_model.ckpt \
+      --freeze_encoder
 """
 
 import subprocess
@@ -26,7 +39,18 @@ def main():
         choices=[1, 2],
         help="Number of GPUs to use for training (default: 2).",
     )
-    # Parse only the --gpus argument, and forward the rest to the training script
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to checkpoint file to resume training from",
+    )
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Freeze encoder layers when resuming from checkpoint (for fine-tuning)",
+    )
+    # Parse known arguments, and forward the rest to the training script
     args, remaining_argv = parser.parse_known_args()
 
     # Default training parameters optimized for two NVIDIA A100s (40 GB memory)
@@ -56,7 +80,9 @@ def main():
         "--gpus": str(args.gpus),
         "--num_workers": "16",
         "--precision": "bf16",
-        "--accumulate_grad_batches": "48" if args.gpus == 2 else "16",  # Adjust for GPU count
+        "--accumulate_grad_batches": (
+            "48" if args.gpus == 2 else "16"
+        ),  # Adjust for GPU count
         "--gradient_clip_val": "1.0",
         # Memory and efficiency optimizations
         "--max_length": "256",
@@ -64,7 +90,7 @@ def main():
         "--seed": "42",
         "--log_predictions": "",
         "--patience": "5",
-        #"--use_torch_compile": "",
+        # "--use_torch_compile": "",
     }
 
     # Start with A100-optimized parameters
@@ -79,9 +105,18 @@ def main():
     }
     params.update(unsupervised_params)
 
+    # Add checkpoint resumption if specified
+    if args.resume_from_checkpoint:
+        params["--resume_from_checkpoint"] = args.resume_from_checkpoint
+        if args.freeze_encoder:
+            params["--freeze_encoder"] = ""
+
     # Build command
     script_path = (
-        Path(__file__).parent.parent.parent / "mole" / "cli" / "train_unsupervised_pretraining.py"
+        Path(__file__).parent.parent.parent
+        / "mole"
+        / "cli"
+        / "train_unsupervised_pretraining.py"
     )
     cmd = [sys.executable, str(script_path)]
 
@@ -105,11 +140,21 @@ def main():
         f"⚖️ Loss Weights: MLM = {params['--mlm_loss_weight']}, Regression = {params['--regression_loss_weight']}"
     )
     print(f"📁 Output: {params['--output_dir']}")
+
+    # Show checkpoint resumption info if applicable
+    if args.resume_from_checkpoint:
+        print(f"🔄 Resuming from checkpoint: {args.resume_from_checkpoint}")
+        if args.freeze_encoder:
+            print("🧊 Encoder: FROZEN (fine-tuning mode)")
+        else:
+            print("🔥 Encoder: TRAINABLE (continued pretraining)")
     batch_size = params["--batch_size"]
     grad_batches = params["--accumulate_grad_batches"]
     gpus = params["--gpus"]
     effective_batch = int(batch_size) * int(grad_batches) * int(gpus)
-    print(f"💾 Batch size: {batch_size} (per GPU) × {grad_batches} (accum) × {gpus} (GPUs) = {effective_batch} effective")
+    print(
+        f"💾 Batch size: {batch_size} (per GPU) × {grad_batches} (accum) × {gpus} (GPUs) = {effective_batch} effective"
+    )
     print(f"⚡ Precision: {params['--precision']}-bit")
     print("=" * 70)
     print()
@@ -130,4 +175,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
