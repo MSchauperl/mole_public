@@ -478,8 +478,8 @@ class FilteredChemBLConfig(ChemBLConfig):
             "--max_epochs": "50",  # Can train longer with smaller dataset
             "--val_check_interval": "0.2",
             "--patience": "8",
-            "--mlm_loss_weight": "0.2",
-            "--classification_loss_weight": "1.0",
+            "--mlm_loss_weight": "0.05",
+            "--classification_loss_weight": "2.0",
             "--gpus": "1",
             "--num_workers": "8",
             "--precision": "16",
