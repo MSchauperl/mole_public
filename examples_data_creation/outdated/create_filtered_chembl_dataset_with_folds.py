@@ -1,16 +1,32 @@
 #!/usr/bin/env python3
 """
-Create Filtered ChemBL Dataset with Fold-based Splits
+Create Filtered ChemBL Dataset with Fold-based Splits (CSV Output)
 
 This script creates a filtered version of the ChemBL dataset that:
 1. Selects the 10 targets with the most measurements
 2. Only includes compounds that have measurements for at least 3 of these targets
 3. Uses existing fold information to create training/validation splits
-4. Saves the filtered data and split information to new files
+4. Saves the filtered data as CSV files for easy analysis
+
+The dataset uses three-state classification:
+- 1: Active compounds
+- -1: Inactive compounds  
+- 0: Missing/not measured compounds
+
+Output files:
+- main_dataset.csv: Complete filtered dataset with all compounds and targets
+- train_dataset.csv: Training set compounds  
+- val_dataset.csv: Validation set compounds
+- metadata.csv: Dataset statistics and filtering information
+
+Note: The 'fold' column in the CSV files contains the original fold assignment
+from the ChemBL dataset (fold_0, fold_1, fold_2), not the train/val split.
+The train/val split is determined by the --test_fold parameter.
 """
 
 import pickle
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from scipy import sparse
 import argparse
@@ -90,7 +106,10 @@ def find_top_targets(
 
     print(f"Top {top_k} targets:")
     for i, (idx, name) in enumerate(zip(top_target_indices, top_target_names)):
-        print(f"  {i+1:2d}. {name[:50]:50s} - {total_activity[idx]:6d} measurements")
+        active = active_counts[idx]
+        inactive = inactive_counts[idx]
+        total = total_activity[idx]
+        print(f"  {i+1:2d}. {name[:50]:50s} - {total:6d} measurements ({active:5d} active, {inactive:5d} inactive)")
 
     return top_target_indices.tolist(), top_target_names
 
@@ -109,8 +128,8 @@ def filter_compounds_by_coverage(
     if sparse.issparse(target_matrix):
         target_matrix = target_matrix.toarray()
 
-    # Count measurements per compound (non-zero entries)
-    measurements_per_compound = (target_matrix != 0).sum(axis=1)
+    # Count measurements per compound (active or inactive, ignore 0s)
+    measurements_per_compound = ((target_matrix == 1) | (target_matrix == -1)).sum(axis=1)
 
     # Find compounds with sufficient coverage
     valid_compounds = np.where(measurements_per_compound >= min_targets)[0]
@@ -169,7 +188,7 @@ def create_fold_based_splits(
     return {"train": training_filtered_indices, "val": validation_filtered_indices}
 
 
-def create_filtered_dataset_with_splits(
+def create_csv_dataset(
     labels_matrix: sparse.csr_matrix,
     target_names: List[str],
     compound_names: List[str],
@@ -177,10 +196,11 @@ def create_filtered_dataset_with_splits(
     target_indices: List[int],
     compound_indices: List[int],
     splits: Dict[str, List[int]],
+    folds_data: List[np.ndarray],
     output_dir: Path,
 ):
-    """Create filtered dataset files with split information."""
-    print("Creating filtered dataset with splits...")
+    """Create filtered dataset as CSV files."""
+    print("Creating CSV dataset files...")
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -188,107 +208,176 @@ def create_filtered_dataset_with_splits(
     # Filter labels matrix
     filtered_labels = labels_matrix[compound_indices][:, target_indices]
 
+    # Convert to dense array if sparse
+    if sparse.issparse(filtered_labels):
+        filtered_labels = filtered_labels.toarray()
+
     # Filter other data
     filtered_target_names = [target_names[i] for i in target_indices]
     filtered_compound_names = [compound_names[i] for i in compound_indices]
     filtered_smiles = [smiles_data[i] for i in compound_indices]
 
-    # Save filtered labels matrix
-    labels_output_path = output_dir / "labelsHard_top10_min3.pckl"
-    with open(labels_output_path, "wb") as f:
-        pickle.dump(filtered_labels, f)
-    print(f"Saved filtered labels matrix: {labels_output_path}")
+    # Create main dataset DataFrame
+    print("Creating main dataset CSV...")
+    
+    # Create fold assignments based on the original fold information
+    fold_assignments = []
+    for compound_idx in compound_indices:
+        # Find which fold this compound belongs to in the original dataset
+        fold_found = False
+        for fold_idx, fold_indices in enumerate(folds_data):
+            if compound_idx in fold_indices:
+                fold_assignments.append(f'fold_{fold_idx}')
+                fold_found = True
+                break
+        if not fold_found:
+            # If compound not found in any fold, assign to fold_0
+            fold_assignments.append('fold_0')
+    
+    main_data = {
+        'compound_id': compound_indices,
+        'compound_name': filtered_compound_names,
+        'smiles': filtered_smiles,
+        'fold': fold_assignments
+    }
+    
+    # Add target columns
+    for i, target_name in enumerate(filtered_target_names):
+        main_data[f'activity_{target_name}'] = filtered_labels[:, i]
 
-    # Save filtered target names
-    target_names_output_path = output_dir / "targetNames_top10_min3.txt"
-    with open(target_names_output_path, "w") as f:
-        f.write("\n".join(filtered_target_names))
-    print(f"Saved filtered target names: {target_names_output_path}")
+    main_df = pd.DataFrame(main_data)
+    
+    # Save main dataset
+    main_output_path = output_dir / "chembl_filtered_main_dataset.csv"
+    main_df.to_csv(main_output_path, index=False)
+    print(f"Saved main dataset: {main_output_path}")
 
-    # Save filtered compound names
-    compound_names_output_path = output_dir / "compoundNames_top10_min3.txt"
-    with open(compound_names_output_path, "w") as f:
-        f.write("\n".join(filtered_compound_names))
-    print(f"Saved filtered compound names: {compound_names_output_path}")
+    # Create training dataset
+    print("Creating training dataset CSV...")
+    train_df = main_df.iloc[splits["train"]].copy()
+    train_output_path = output_dir / "chembl_filtered_train_dataset.csv"
+    train_df.to_csv(train_output_path, index=False)
+    print(f"Saved training dataset: {train_output_path}")
 
-    # Save filtered SMILES
-    smiles_output_path = output_dir / "chemblSmiles_top10_min3.pckl"
-    with open(smiles_output_path, "wb") as f:
-        pickle.dump(filtered_smiles, f)
-    print(f"Saved filtered SMILES: {smiles_output_path}")
+    # Create validation dataset
+    print("Creating validation dataset CSV...")
+    val_df = main_df.iloc[splits["val"]].copy()
+    val_output_path = output_dir / "chembl_filtered_val_dataset.csv"
+    val_df.to_csv(val_output_path, index=False)
+    print(f"Saved validation dataset: {val_output_path}")
 
-    # Save split information
-    splits_output_path = output_dir / "splits_top10_min3.pckl"
-    with open(splits_output_path, "wb") as f:
-        pickle.dump(splits, f)
-    print(f"Saved split information: {splits_output_path}")
+    # Create metadata CSV
+    print("Creating metadata CSV...")
+    metadata_data = []
+    
+    for i, (idx, name) in enumerate(zip(target_indices, filtered_target_names)):
+        # Original dataset statistics
+        if sparse.issparse(labels_matrix):
+            original_active = (labels_matrix[:, idx].toarray().flatten() == 1).sum()
+            original_inactive = (labels_matrix[:, idx].toarray().flatten() == -1).sum()
+        else:
+            original_active = (labels_matrix[:, idx] == 1).sum()
+            original_inactive = (labels_matrix[:, idx] == -1).sum()
+        original_total = original_active + original_inactive
 
-    # Save split information as text files for easy inspection
-    train_output_path = output_dir / "train_indices_top10_min3.txt"
-    with open(train_output_path, "w") as f:
+        # Filtered dataset statistics
+        filtered_active = (filtered_labels[:, i] == 1).sum()
+        filtered_inactive = (filtered_labels[:, i] == -1).sum()
+        filtered_total = filtered_active + filtered_inactive
+
+        metadata_data.append({
+            'target_index': i,
+            'target_name': name,
+            'original_total_measurements': original_total,
+            'original_active_count': original_active,
+            'original_inactive_count': original_inactive,
+            'original_active_ratio': original_active / original_total if original_total > 0 else 0,
+            'filtered_total_measurements': filtered_total,
+            'filtered_active_count': filtered_active,
+            'filtered_inactive_count': filtered_inactive,
+            'filtered_active_ratio': filtered_active / filtered_total if filtered_total > 0 else 0,
+            'retention_rate': filtered_total / original_total if original_total > 0 else 0
+        })
+
+    metadata_df = pd.DataFrame(metadata_data)
+    metadata_output_path = output_dir / "chembl_filtered_metadata.csv"
+    metadata_df.to_csv(metadata_output_path, index=False)
+    print(f"Saved metadata: {metadata_output_path}")
+
+    # Create summary statistics
+    print("Creating summary statistics...")
+    summary_data = {
+        'metric': [
+            'original_compounds',
+            'original_targets', 
+            'filtered_compounds',
+            'filtered_targets',
+            'compound_retention_rate',
+            'training_compounds',
+            'validation_compounds',
+            'total_split_compounds'
+        ],
+        'value': [
+            labels_matrix.shape[0],
+            labels_matrix.shape[1],
+            len(compound_indices),
+            len(target_indices),
+            len(compound_indices) / labels_matrix.shape[0],
+            len(splits['train']),
+            len(splits['val']),
+            len(splits['train']) + len(splits['val'])
+        ]
+    }
+    
+    summary_df = pd.DataFrame(summary_data)
+    summary_output_path = output_dir / "chembl_filtered_summary.csv"
+    summary_df.to_csv(summary_output_path, index=False)
+    print(f"Saved summary: {summary_output_path}")
+
+    # Create split indices files (for compatibility)
+    train_indices_path = output_dir / "train_indices.txt"
+    with open(train_indices_path, "w") as f:
         f.write("\n".join(map(str, splits["train"])))
-    print(f"Saved training indices: {train_output_path}")
+    print(f"Saved training indices: {train_indices_path}")
 
-    val_output_path = output_dir / "val_indices_top10_min3.txt"
-    with open(val_output_path, "w") as f:
+    val_indices_path = output_dir / "val_indices.txt"
+    with open(val_indices_path, "w") as f:
         f.write("\n".join(map(str, splits["val"])))
-    print(f"Saved validation indices: {val_output_path}")
+    print(f"Saved validation indices: {val_indices_path}")
 
-    # Save metadata
-    metadata_path = output_dir / "filtering_metadata.txt"
-    with open(metadata_path, "w") as f:
-        f.write("ChemBL Filtered Dataset Metadata\n")
-        f.write("=" * 40 + "\n\n")
-        f.write(
-            f"Original dataset: {labels_matrix.shape[0]} compounds, {labels_matrix.shape[1]} targets\n"
-        )
-        f.write(
-            f"Filtered dataset: {len(compound_indices)} compounds, {len(target_indices)} targets\n"
-        )
-        f.write(
-            f"Retention rate: {len(compound_indices)/labels_matrix.shape[0]*100:.1f}% compounds\n\n"
-        )
-        f.write("Filtering criteria:\n")
-        f.write(f"- Top {len(target_indices)} targets by measurement count\n")
-        f.write("- Compounds with measurements for ≥3 targets\n\n")
-        f.write("Split information:\n")
-        f.write(f"- Training: {len(splits['train'])} compounds\n")
-        f.write(f"- Validation: {len(splits['val'])} compounds\n")
-        f.write(f"- Total: {len(splits['train']) + len(splits['val'])} compounds\n\n")
-        f.write("Selected targets:\n")
-        for i, (idx, name) in enumerate(zip(target_indices, filtered_target_names)):
-            if sparse.issparse(labels_matrix):
-                original_counts = (labels_matrix[:, idx].toarray().flatten() != 0).sum()
-            else:
-                original_counts = (labels_matrix[:, idx] != 0).sum()
-
-            if sparse.issparse(filtered_labels):
-                filtered_counts = (filtered_labels[:, i].toarray().flatten() != 0).sum()
-            else:
-                filtered_counts = (filtered_labels[:, i] != 0).sum()
-            f.write(
-                f"  {i+1:2d}. {name} - Original: {original_counts:6d}, Filtered: {filtered_counts:6d}\n"
-            )
-    print(f"Saved metadata: {metadata_path}")
-
-    print("\nFiltered dataset summary:")
-    print(
-        f"  Original: {labels_matrix.shape[0]:6d} compounds × {labels_matrix.shape[1]:4d} targets"
-    )
-    print(
-        f"  Filtered: {len(compound_indices):6d} compounds × {len(target_indices):4d} targets"
-    )
-    print(
-        f"  Retention: {len(compound_indices)/labels_matrix.shape[0]*100:5.1f}% compounds"
-    )
-    print(f"  Training: {len(splits['train']):6d} compounds")
-    print(f"  Validation: {len(splits['val']):6d} compounds")
+    # Print summary
+    print("\n📊 Dataset Summary:")
+    print("=" * 50)
+    print(f"Original dataset: {labels_matrix.shape[0]:,} compounds × {labels_matrix.shape[1]:,} targets")
+    print(f"Filtered dataset: {len(compound_indices):,} compounds × {len(target_indices):,} targets")
+    print(f"Compound retention: {len(compound_indices)/labels_matrix.shape[0]*100:.1f}%")
+    print(f"Training set: {len(splits['train']):,} compounds")
+    print(f"Validation set: {len(splits['val']):,} compounds")
+    print(f"Total split compounds: {len(splits['train']) + len(splits['val']):,}")
+    
+    # Show fold distribution
+    fold_counts = {}
+    for fold_assignment in fold_assignments:
+        fold_counts[fold_assignment] = fold_counts.get(fold_assignment, 0) + 1
+    
+    print(f"\n📁 Fold Distribution:")
+    for fold_name in sorted(fold_counts.keys()):
+        print(f"  {fold_name}: {fold_counts[fold_name]:,} compounds")
+    
+    print(f"\n📁 Output files created in: {output_dir}")
+    print("  • chembl_filtered_main_dataset.csv - Complete filtered dataset")
+    print("  • chembl_filtered_train_dataset.csv - Training set")
+    print("  • chembl_filtered_val_dataset.csv - Validation set")
+    print("  • chembl_filtered_metadata.csv - Target-level statistics")
+    print("  • chembl_filtered_summary.csv - Dataset summary")
+    print("  • train_indices.txt - Training compound indices")
+    print("  • val_indices.txt - Validation compound indices")
 
 
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(
-        description="Create filtered ChemBL dataset with fold-based splits"
+        description="Create filtered ChemBL dataset with fold-based splits (CSV output)"
     )
     parser.add_argument(
         "--data_dir",
@@ -299,8 +388,8 @@ def main():
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="data/ChemBl_filtered",
-        help="Output directory for filtered dataset",
+        default="data/ChemBl_filtered_csv",
+        help="Output directory for filtered dataset CSV files",
     )
     parser.add_argument(
         "--top_targets", type=int, default=10, help="Number of top targets to select"
@@ -346,8 +435,8 @@ def main():
         folds_data, valid_compound_indices, test_fold=args.test_fold
     )
 
-    # Create filtered dataset with splits
-    create_filtered_dataset_with_splits(
+    # Create CSV dataset
+    create_csv_dataset(
         labels_matrix=labels_matrix,
         target_names=target_names,
         compound_names=compound_names,
@@ -355,11 +444,12 @@ def main():
         target_indices=top_target_indices,
         compound_indices=valid_compound_indices,
         splits=splits,
+        folds_data=folds_data,
         output_dir=output_dir,
     )
 
     print(
-        f"\n✅ Filtered ChemBL dataset with fold-based splits created successfully in: {output_dir}"
+        f"\n✅ Filtered ChemBL dataset with CSV output created successfully in: {output_dir}"
     )
 
 

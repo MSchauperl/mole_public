@@ -27,8 +27,8 @@ class ChemBLConfig:
             "--chembl_labels_path": "data/ChemBl/labelsHard.pckl",
             "--chembl_target_names_path": "data/ChemBl/labelsWeakHard.targetNames",
             "--chembl_compound_names_path": "data/ChemBl/labelsWeakHard.cmpNames",
-            "--input_vocab": "mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
-            "--target_vocab": "mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
+            "--input_vocab": "../../mole/data/vocabularies/vocabulary_radius0_structural_guacamol_v1.pkl",
+            "--target_vocab": "../../mole/data/vocabularies/vocabulary_radius1_functional_guacamol_v1.pkl",
             # Environment configuration
             "--input_radius": "0",
             "--target_radius": "1",
@@ -439,33 +439,33 @@ class T4OnlyFineTuneConfig(ChemBLConfig):
 
 
 class FilteredChemBLConfig(ChemBLConfig):
-    """Configuration for filtered ChemBL dataset (top 10 targets, min 3 measurements)."""
+    """Configuration for filtered ChemBL dataset (top 10 targets, min 3 measurements) with corrected 3-state classification."""
 
     def __init__(self):
-        super().__init__("filtered_chembl")
+        super().__init__("filtered_chembl_corrected")
 
     def _get_base_params(self) -> Dict[str, str]:
-        """Get base parameters for filtered ChemBL dataset."""
+        """Get base parameters for filtered ChemBL dataset with corrected 3-state classification."""
         base_params = super()._get_base_params()
 
-        # Override data paths to use filtered dataset
+        # Override data paths to use corrected filtered dataset
         base_params.update(
             {
-                "--chembl_smiles_path": "data/ChemBl_filtered/chemblSmiles_top10_min3.pckl",
-                "--chembl_labels_path": "data/ChemBl_filtered/labelsHard_top10_min3.pckl",
-                "--chembl_target_names_path": "data/ChemBl_filtered/targetNames_top10_min3.txt",
-                "--chembl_compound_names_path": "data/ChemBl_filtered/compoundNames_top10_min3.txt",
-                "--split_indices_path": "data/ChemBl_filtered/splits_top10_min3.pckl",
+                "--chembl_smiles_path": "data/ChemBl_filtered_corrected/chemblSmiles_top10_min3.pckl",
+                "--chembl_labels_path": "data/ChemBl_filtered_corrected/labelsHard_top10_min3.pckl",
+                "--chembl_target_names_path": "data/ChemBl_filtered_corrected/targetNames_top10_min3.txt",
+                "--chembl_compound_names_path": "data/ChemBl_filtered_corrected/compoundNames_top10_min3.txt",
+                "--split_indices_path": "data/ChemBl_filtered_corrected/splits_top10_min3.pckl",
             }
         )
 
         return base_params
 
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get filtered ChemBL configuration."""
+        """Get filtered ChemBL configuration with corrected 3-state classification."""
         filtered_params = {
-            "--output_dir": "outputs/chembl_filtered",
-            "--model_name": "chembl_filtered_top10_t4",
+            "--output_dir": "outputs/chembl_filtered_corrected",
+            "--model_name": "chembl_filtered_corrected_top10_t4",
             "--max_targets": "10",  # All targets in filtered dataset
             "--min_target_activity": "0",  # No need to filter further
             "--hidden_size": "768",  # Can use larger model with fewer targets
@@ -495,87 +495,49 @@ class FilteredChemBLConfig(ChemBLConfig):
         return config
 
     def print_config_summary(self, config: Dict[str, str], title: str):
-        """Print a formatted summary with filtered dataset info."""
-        print(f"🚀 {title}")
-        print("=" * 70)
-
-        # Dataset info - special note for filtered dataset
-        print(
-            "📊 Dataset: ChemBL Filtered (Top 10 targets, ≥3 measurements per compound)"
-        )
-        print("   • 84,413 compounds with high target coverage")
-        print("   • 10 most active targets from original 1,310")
-        print("   • Quality-focused subset for efficient training")
-
-        # GPU info
-        gpu_info = self._get_gpu_info(config)
-        print(f"🎯 {gpu_info}")
-
-        # Architecture info
-        hidden_size = config["--hidden_size"]
-        num_layers = config["--num_hidden_layers"]
-        arch_desc = self._get_architecture_description(config)
-        print(
-            f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers ({arch_desc})"
-        )
-
-        # Task info
-        target_radius = config["--target_radius"]
-        input_radius = config["--input_radius"]
-
-        # Check if ChemBL-only mode
-        if "--chembl_only" in config:
-            print(
-                f"🎯 Task: ChemBL classification only (radius-{input_radius} structural input)"
-            )
-        else:
-            print(
-                f"🎯 Task: Predict radius-{target_radius} functional from radius-{input_radius} structural"
-            )
-
-        print(
-            f"🧪 ChemBL: 10 high-activity targets (no minimum activity filtering needed)"
-        )
-
-        # Training info
-        batch_size = config["--batch_size"]
-        grad_batches = config["--accumulate_grad_batches"]
-        effective_batch = int(batch_size) * int(grad_batches)
-        print(
-            f"💾 Batch size: {batch_size} × {grad_batches} = {effective_batch} effective"
-        )
-        print(f"⚡ Precision: {config['--precision']}-bit")
-        print(f"🧠 Max sequence length: {config['--max_length']}")
-        print(f"👥 Workers: {config['--num_workers']}")
-
-        # Loss info
-        self._print_loss_info(config)
-
-        # Pretrained model info
-        self._print_pretrained_info(config)
-
-        print(f"📁 Output: {config['--output_dir']}")
-
-        print("=" * 70)
+        """Print a formatted summary with corrected filtered dataset info."""
+        print(f"\n🔬 {title}")
+        print("=" * 60)
+        print("📊 Dataset: Filtered ChemBL (Corrected 3-State Classification)")
+        print("   • Top 10 targets by measurement count")
+        print("   • Compounds with ≥3 target measurements")
+        print("   • 3-state classification: 1 (active), -1 (inactive), 0 (not measured)")
+        print("   • Only active/inactive compounds used for training (0 values ignored)")
+        print(f"   • Data path: {config['--chembl_labels_path']}")
+        print(f"   • Split path: {config['--split_indices_path']}")
+        print()
+        print("🎯 Model Configuration:")
+        print(f"   • Hidden size: {config['--hidden_size']}")
+        print(f"   • Layers: {config['--num_hidden_layers']}")
+        print(f"   • Attention heads: {config['--num_attention_heads']}")
+        print(f"   • Batch size: {config['--batch_size']} × {config['--accumulate_grad_batches']} = {int(config['--batch_size']) * int(config['--accumulate_grad_batches'])} effective")
+        print()
+        print("⚙️ Training Configuration:")
+        print(f"   • Learning rate: {config['--learning_rate']}")
+        print(f"   • Warmup steps: {config['--warmup_steps']}")
+        print(f"   • Max epochs: {config['--max_epochs']}")
+        print(f"   • MLM weight: {config['--mlm_loss_weight']}")
+        print(f"   • Classification weight: {config['--classification_loss_weight']}")
+        print(f"   • Output: {config['--output_dir']}")
         print()
 
 
 class FilteredChemBLOnlyConfig(FilteredChemBLConfig):
-    """ChemBL-only configuration for filtered dataset (no MLM)."""
+    """ChemBL-only configuration for filtered dataset with corrected 3-state classification (no MLM)."""
 
     def __init__(self):
         super().__init__()
-        self.config_name = "filtered_chembl_only"
+        self.config_name = "filtered_chembl_only_corrected"
 
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get filtered ChemBL-only configuration."""
+        """Get filtered ChemBL-only configuration with corrected 3-state classification."""
         # Start with base filtered config
         config = super().get_config()
 
         # ChemBL-only specific overrides
         chembl_only_params = {
-            "--output_dir": "outputs/chembl_filtered_only",
-            "--model_name": "chembl_filtered_only_t4",
+            "--output_dir": "outputs/chembl_filtered_only_corrected",
+            "--model_name": "chembl_filtered_only_corrected_t4",
             "--batch_size": "16",  # Can use even larger batch without MLM
             "--learning_rate": "1e-4",
             "--warmup_steps": "1000",
@@ -598,33 +560,33 @@ class FilteredChemBLOnlyConfig(FilteredChemBLConfig):
 
 
 class T4ConfigWithFolds(ChemBLConfig):
-    """Tesla T4 optimized configuration with fold-based splits."""
+    """Tesla T4 optimized configuration with fold-based splits and corrected 3-state classification."""
 
     def __init__(self):
-        super().__init__("t4_folds")
+        super().__init__("t4_folds_corrected")
 
     def _get_base_params(self) -> Dict[str, str]:
-        """Get base parameters with fold-based splits."""
+        """Get base parameters with fold-based splits and corrected 3-state classification."""
         base_params = super()._get_base_params()
 
-        # Override to use filtered dataset with fold-based splits
+        # Override to use corrected filtered dataset with fold-based splits
         base_params.update(
             {
-                "--chembl_smiles_path": "data/ChemBl_filtered/chemblSmiles_top10_min3.pckl",
-                "--chembl_labels_path": "data/ChemBl_filtered/labelsHard_top10_min3.pckl",
-                "--chembl_target_names_path": "data/ChemBl_filtered/targetNames_top10_min3.txt",
-                "--chembl_compound_names_path": "data/ChemBl_filtered/compoundNames_top10_min3.txt",
-                "--split_indices_path": "data/ChemBl_filtered/splits_top10_min3.pckl",
+                "--chembl_smiles_path": "../../data/ChemBl_filtered_with_folds_corrected/chemblSmiles_top10_min3.pckl",
+                "--chembl_labels_path": "../../data/ChemBl_filtered_with_folds_corrected/labelsHard_top10_min3.pckl",
+                "--chembl_target_names_path": "../../data/ChemBl_filtered_with_folds_corrected/targetNames_top10_min3.txt",
+                "--chembl_compound_names_path": "../../data/ChemBl_filtered_with_folds_corrected/compoundNames_top10_min3.txt",
+                "--split_indices_path": "../../data/ChemBl_filtered_with_folds_corrected/splits_top10_min3.pckl",
             }
         )
 
         return base_params
 
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get T4-optimized configuration with fold-based splits."""
+        """Get T4 configuration with fold-based splits and corrected 3-state classification."""
         t4_params = {
-            "--output_dir": "outputs/chembl_mlm_folds",
-            "--model_name": "chembl_r0_to_r1_functional_t4_folds",
+            "--output_dir": "outputs/chembl_mlm_folds_corrected",
+            "--model_name": "chembl_r0_to_r1_functional_t4_folds_corrected",
             "--max_targets": "10",  # All targets in filtered dataset
             "--min_target_activity": "0",  # No need to filter further
             "--hidden_size": "512",
@@ -654,96 +616,62 @@ class T4ConfigWithFolds(ChemBLConfig):
         return config
 
     def print_config_summary(self, config: Dict[str, str], title: str):
-        """Print a formatted summary with fold-based splits info."""
-        print(f"🚀 {title}")
-        print("=" * 70)
-
-        # Dataset info - special note for fold-based splits
-        print("📊 Dataset: ChemBL Filtered with Fold-based Splits")
-        print("   • 84,413 compounds with high target coverage")
-        print("   • 10 most active targets from original 1,310")
-        print("   • Using fold-based training/validation splits")
-        print("   • No data leakage between train and validation")
-
-        # GPU info
-        gpu_info = self._get_gpu_info(config)
-        print(f"🎯 {gpu_info}")
-
-        # Architecture info
-        hidden_size = config["--hidden_size"]
-        num_layers = config["--num_hidden_layers"]
-        arch_desc = self._get_architecture_description(config)
-        print(
-            f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers ({arch_desc})"
-        )
-
-        # Task info
-        target_radius = config["--target_radius"]
-        input_radius = config["--input_radius"]
-
-        # Check if ChemBL-only mode
-        if "--chembl_only" in config:
-            print(
-                f"🎯 Task: ChemBL classification only (radius-{input_radius} structural input)"
-            )
-        else:
-            print(
-                f"🎯 Task: Predict radius-{target_radius} functional from radius-{input_radius} structural"
-            )
-
-        print(f"🧪 ChemBL: 10 high-activity targets with fold-based splits")
-
-        # Training info
-        batch_size = config["--batch_size"]
-        grad_batches = config["--accumulate_grad_batches"]
-        effective_batch = int(batch_size) * int(grad_batches)
-        print(
-            f"💾 Batch size: {batch_size} × {grad_batches} = {effective_batch} effective"
-        )
-        print(f"⚡ Precision: {config['--precision']}-bit")
-        print(f"🧠 Max sequence length: {config['--max_length']}")
-        print(f"👥 Workers: {config['--num_workers']}")
-
-        # Loss info
-        self._print_loss_info(config)
-
-        # Pretrained model info
-        self._print_pretrained_info(config)
-
-        print(f"📁 Output: {config['--output_dir']}")
-
-        print("=" * 70)
+        """Print a formatted summary with fold-based splits and corrected 3-state classification info."""
+        print(f"\n🔬 {title}")
+        print("=" * 60)
+        print("📊 Dataset: Filtered ChemBL (Corrected 3-State Classification)")
+        print("   • Top 10 targets by measurement count")
+        print("   • Compounds with ≥3 target measurements")
+        print("   • 3-state classification: 1 (active), -1 (inactive), 0 (not measured)")
+        print("   • Only active/inactive compounds used for training (0 values ignored)")
+        print("   • Fold-based train/validation splits")
+        print(f"   • Data path: {config['--chembl_labels_path']}")
+        print(f"   • Split path: {config['--split_indices_path']}")
+        print()
+        print("🎯 Model Configuration:")
+        print(f"   • Hidden size: {config['--hidden_size']}")
+        print(f"   • Layers: {config['--num_hidden_layers']}")
+        print(f"   • Attention heads: {config['--num_attention_heads']}")
+        print(f"   • Batch size: {config['--batch_size']} × {config['--accumulate_grad_batches']} = {int(config['--batch_size']) * int(config['--accumulate_grad_batches'])} effective")
+        print()
+        print("⚙️ Training Configuration:")
+        print(f"   • Learning rate: {config['--learning_rate']}")
+        print(f"   • Warmup steps: {config['--warmup_steps']}")
+        print(f"   • Max epochs: {config['--max_epochs']}")
+        print(f"   • MLM weight: {config['--mlm_loss_weight']}")
+        print(f"   • Classification weight: {config['--classification_loss_weight']}")
+        print(f"   • Output: {config['--output_dir']}")
         print()
 
 
 class T4OnlyConfigWithFolds(ChemBLConfig):
-    """Tesla T4 ChemBL-only configuration with fold-based splits."""
+    """Tesla T4 ChemBL-only configuration with fold-based splits and corrected 3-state classification."""
 
     def __init__(self):
-        super().__init__("t4_only_folds")
+        super().__init__("t4_only_folds_corrected")
 
     def _get_base_params(self) -> Dict[str, str]:
-        """Get base parameters with fold-based splits."""
+        """Get base parameters with fold-based splits and corrected 3-state classification."""
         base_params = super()._get_base_params()
 
-        # Override to use filtered dataset with fold-based splits
+        # Override to use corrected filtered dataset with fold-based splits
         base_params.update(
             {
-                "--chembl_smiles_path": "data/ChemBl_filtered/chemblSmiles_top10_min3.pckl",
-                "--chembl_labels_path": "data/ChemBl_filtered/labelsHard_top10_min3.pckl",
-                "--chembl_target_names_path": "data/ChemBl_filtered/targetNames_top10_min3.txt",
-                "--chembl_compound_names_path": "data/ChemBl_filtered/compoundNames_top10_min3.txt",
-                "--split_indices_path": "data/ChemBl_filtered/splits_top10_min3.pckl",
+                "--chembl_smiles_path": "../../data/ChemBl_filtered_with_folds_corrected/chemblSmiles_top10_min3.pckl",
+                "--chembl_labels_path": "../../data/ChemBl_filtered_with_folds_corrected/labelsHard_top10_min3.pckl",
+                "--chembl_target_names_path": "../../data/ChemBl_filtered_with_folds_corrected/targetNames_top10_min3.txt",
+                "--chembl_compound_names_path": "../../data/ChemBl_filtered_with_folds_corrected/compoundNames_top10_min3.txt",
+                "--split_indices_path": "../../data/ChemBl_filtered_with_folds_corrected/splits_top10_min3.pckl",
             }
         )
 
         return base_params
 
     def get_config(self, overrides: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Get T4 ChemBL-only configuration with fold-based splits."""
+        """Get T4-only configuration with fold-based splits and corrected 3-state classification."""
         t4_only_params = {
-            "--output_dir": "outputs/chembl_only_folds",
-            "--model_name": "chembl_only_t4_folds",
+            "--output_dir": "outputs/chembl_only_folds_corrected",
+            "--model_name": "chembl_only_t4_folds_corrected",
             "--max_targets": "10",  # All targets in filtered dataset
             "--min_target_activity": "0",  # No need to filter further
             "--hidden_size": "768",  # Can be larger without MLM
@@ -773,59 +701,31 @@ class T4OnlyConfigWithFolds(ChemBLConfig):
         return config
 
     def print_config_summary(self, config: Dict[str, str], title: str):
-        """Print a formatted summary with fold-based splits info."""
-        print(f"🚀 {title}")
-        print("=" * 70)
-
-        # Dataset info - special note for fold-based splits
-        print(
-            "📊 Dataset: ChemBL Filtered with Fold-based Splits (Classification Only)"
-        )
-        print("   • 84,413 compounds with high target coverage")
-        print("   • 10 most active targets from original 1,310")
-        print("   • Using fold-based training/validation splits")
-        print("   • No data leakage between train and validation")
-        print("   • MLM disabled - classification only")
-
-        # GPU info
-        gpu_info = self._get_gpu_info(config)
-        print(f"🎯 {gpu_info}")
-
-        # Architecture info
-        hidden_size = config["--hidden_size"]
-        num_layers = config["--num_hidden_layers"]
-        arch_desc = self._get_architecture_description(config)
-        print(
-            f"🏗️  Architecture: {hidden_size} hidden, {num_layers} layers ({arch_desc})"
-        )
-
-        # Task info
-        input_radius = config["--input_radius"]
-        print(
-            f"🎯 Task: ChemBL classification only (radius-{input_radius} structural input)"
-        )
-        print(f"🧪 ChemBL: 10 high-activity targets with fold-based splits")
-
-        # Training info
-        batch_size = config["--batch_size"]
-        grad_batches = config["--accumulate_grad_batches"]
-        effective_batch = int(batch_size) * int(grad_batches)
-        print(
-            f"💾 Batch size: {batch_size} × {grad_batches} = {effective_batch} effective"
-        )
-        print(f"⚡ Precision: {config['--precision']}-bit")
-        print(f"🧠 Max sequence length: {config['--max_length']}")
-        print(f"👥 Workers: {config['--num_workers']}")
-
-        # Loss info
-        self._print_loss_info(config)
-
-        # Pretrained model info
-        self._print_pretrained_info(config)
-
-        print(f"📁 Output: {config['--output_dir']}")
-
-        print("=" * 70)
+        """Print a formatted summary with fold-based splits and corrected 3-state classification info."""
+        print(f"\n🔬 {title}")
+        print("=" * 60)
+        print("📊 Dataset: Filtered ChemBL (Corrected 3-State Classification)")
+        print("   • Top 10 targets by measurement count")
+        print("   • Compounds with ≥3 target measurements")
+        print("   • 3-state classification: 1 (active), -1 (inactive), 0 (not measured)")
+        print("   • Only active/inactive compounds used for training (0 values ignored)")
+        print("   • Fold-based train/validation splits")
+        print("   • ChemBL-only mode (no MLM)")
+        print(f"   • Data path: {config['--chembl_labels_path']}")
+        print(f"   • Split path: {config['--split_indices_path']}")
+        print()
+        print("🎯 Model Configuration:")
+        print(f"   • Hidden size: {config['--hidden_size']}")
+        print(f"   • Layers: {config['--num_hidden_layers']}")
+        print(f"   • Attention heads: {config['--num_attention_heads']}")
+        print(f"   • Batch size: {config['--batch_size']} × {config['--accumulate_grad_batches']} = {int(config['--batch_size']) * int(config['--accumulate_grad_batches'])} effective")
+        print()
+        print("⚙️ Training Configuration:")
+        print(f"   • Learning rate: {config['--learning_rate']}")
+        print(f"   • Warmup steps: {config['--warmup_steps']}")
+        print(f"   • Max epochs: {config['--max_epochs']}")
+        print(f"   • Classification weight: {config['--classification_loss_weight']}")
+        print(f"   • Output: {config['--output_dir']}")
         print()
 
 

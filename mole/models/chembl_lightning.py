@@ -239,8 +239,8 @@ class ChemBLLightningModule(CrossEnvMLM):
             return {"val_loss": torch.tensor(0.0, device=self.device)}
 
         # Forward pass
-        # Skip MLM computation if MLM weight is 0 (ChemBL-only mode)
-        mlm_labels = labels if self.mlm_loss_weight > 0 else None
+        # Do not compute MLM during validation; only classification is evaluated
+        mlm_labels = None
         outputs = self(
             input_ids=input_ids,
             input_mask=input_mask,
@@ -255,12 +255,10 @@ class ChemBLLightningModule(CrossEnvMLM):
         mlm_loss = outputs.get("mlm_loss", outputs.get("loss", 0.0))
         classification_loss = outputs.get("classification_loss", 0.0)
         
-        total_loss = (
-            self.mlm_loss_weight * mlm_loss + 
-            self.classification_loss_weight * classification_loss
-        )
+        # Validation total loss equals classification loss (no MLM in validation)
+        total_loss = self.classification_loss_weight * classification_loss
 
-        # Update MLM metrics
+        # Update MLM metrics (skipped when MLM is disabled in validation)
         if hasattr(self, 'val_mlm_metrics') and 'mlm_logits' in outputs:
             mlm_logits = outputs['mlm_logits']
             if mlm_logits is not None:
