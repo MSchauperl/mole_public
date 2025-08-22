@@ -14,10 +14,7 @@ Usage examples:
     # Train on full ChemBL CSV with MLM and random splits
     python run_chembl_unified.py --dataset full --mlm true --splits random
 
-    # Train on filtered ChemBL CSV with classification only and fold-based splits
-    python run_chembl_unified.py --dataset filtered --mlm false --splits folds
-
-    # Train on corrected filtered ChemBL CSV with proper 3-state classification
+    # Train on filtered ChemBL CSV with proper 3-state classification
     python run_chembl_unified.py --dataset filtered_corrected --mlm true --splits folds
 
     # Fine-tune a pretrained model with frozen encoder
@@ -26,6 +23,22 @@ Usage examples:
 
     # Quick test run (MLM enabled by default)
     python run_chembl_unified.py --dataset test --splits random
+
+    # Train with custom model name
+    python run_chembl_unified.py --dataset filtered_corrected --mlm true --splits folds \
+        --model_name my_custom_model_v1
+
+    # Train with enhanced architecture for better performance
+    python run_chembl_unified.py --dataset filtered_corrected --mlm true --splits folds \
+        --enhanced_classifier --model_name enhanced_model_v1
+
+    # Train with custom architecture parameters
+    python run_chembl_unified.py --dataset filtered_corrected --mlm true --splits folds \
+        --hidden_size 1024 --num_layers 16 --num_heads 16 --model_name large_model_v1
+
+    # Train with focal loss for imbalanced data
+    python run_chembl_unified.py --dataset filtered_corrected --mlm true --splits folds \
+        --use_focal_loss --focal_alpha 2.0 --focal_gamma 2.0 --model_name focal_loss_v1
 """
 
 import argparse
@@ -308,9 +321,6 @@ def create_csv_config(dataset_type: str, mlm: bool, splits: str):
     if dataset_type == "full":
         csv_path = "../../examples_data_creation/chembl_complete_dataset_full.csv"
         title_suffix = "Full ChemBL CSV"
-    elif dataset_type == "filtered":
-        csv_path = "../../examples_data_creation/chembl_single_target/chembl_multi_target_dataset.csv"
-        title_suffix = "Filtered ChemBL CSV (7 assays)"
     elif dataset_type == "filtered_corrected":
         csv_path = "../../examples_data_creation/chembl_single_target/chembl_multi_target_dataset.csv"
         title_suffix = "Filtered ChemBL CSV (Corrected 3-state)"
@@ -339,24 +349,24 @@ def create_csv_config(dataset_type: str, mlm: bool, splits: str):
         "--log_predictions": "",
         "--log_target_metrics": "",
         
-        # Model architecture
-        "--hidden_size": "512",
-        "--num_hidden_layers": "8",
-        "--num_attention_heads": "8",
-        "--intermediate_size": "2048",
-        "--max_length": "256",
+        # Model architecture - Enhanced for better performance
+        "--hidden_size": "768",  # Increased from 512
+        "--num_hidden_layers": "12",  # Increased from 8
+        "--num_attention_heads": "12",  # Increased from 8
+        "--intermediate_size": "3072",  # Increased proportionally
+        "--max_length": "512",  # Increased to handle longer molecules
         
-        # Training parameters
-        "--batch_size": "32",
-        "--learning_rate": "1e-4",
-        "--warmup_steps": "1000",
-        "--max_epochs": "50",
+        # Training parameters - Optimized for better convergence
+        "--batch_size": "16",  # Reduced for larger model
+        "--learning_rate": "5e-5",  # Lower learning rate for stability
+        "--warmup_steps": "2000",  # More warmup for larger model
+        "--max_epochs": "100",  # More epochs for convergence
         "--val_check_interval": "0.25",
-        "--patience": "10",
+        "--patience": "15",  # More patience for larger model
         "--gpus": "1",
         "--num_workers": "4",
         "--precision": "16",
-        "--accumulate_grad_batches": "4",
+        "--accumulate_grad_batches": "8",  # Increased to maintain effective batch size
         
         # Output settings
         "--output_dir": f"outputs/chembl_csv_{dataset_type}",
@@ -472,6 +482,10 @@ def run_csv_training(config, title, pretrained_path=None, freeze_encoder=False):
         num_targets=target_info['num_targets'],
         hidden_dropout_prob=float(config['--dropout']),
         classifier_dropout_prob=float(config['--classifier_dropout']),
+        use_focal_loss=config.get('--use_focal_loss', False),
+        focal_alpha=float(config.get('--focal_alpha', 1.0)),
+        focal_gamma=float(config.get('--focal_gamma', 2.0)),
+        use_enhanced_classifier=config.get('--enhanced_classifier', False),
     )
     
     # Load pretrained weights if specified
@@ -564,9 +578,9 @@ def main():
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=["full", "filtered", "filtered_corrected", "test"],
+        choices=["full", "filtered_corrected", "test"],
         default="filtered_corrected",
-        help="Dataset to use: 'full' (ChemBL CSV), 'filtered' (multi-target CSV), 'filtered_corrected' (corrected 3-state CSV), or 'test' (1K samples)",
+        help="Dataset to use: 'full' (ChemBL CSV), 'filtered_corrected' (corrected 3-state CSV), or 'test' (1K samples)",
     )
 
     # MLM configuration
@@ -601,7 +615,57 @@ def main():
         help="Freeze encoder layers when resuming from checkpoint (for fine-tuning)",
     )
 
+    # Model architecture overrides
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=None,
+        help="Override hidden size (default: 768 for enhanced, 512 for standard)",
+    )
+    parser.add_argument(
+        "--num_layers",
+        type=int,
+        default=None,
+        help="Override number of transformer layers (default: 12 for enhanced, 8 for standard)",
+    )
+    parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=None,
+        help="Override number of attention heads (default: 12 for enhanced, 8 for standard)",
+    )
+    
+    # Training strategy overrides
+    parser.add_argument(
+        "--use_focal_loss",
+        action="store_true",
+        help="Use focal loss for handling class imbalance",
+    )
+    parser.add_argument(
+        "--focal_alpha",
+        type=float,
+        default=1.0,
+        help="Alpha parameter for focal loss (class weighting, default: 1.0)",
+    )
+    parser.add_argument(
+        "--focal_gamma",
+        type=float,
+        default=2.0,
+        help="Gamma parameter for focal loss (focusing parameter, default: 2.0)",
+    )
+    parser.add_argument(
+        "--enhanced_classifier",
+        action="store_true",
+        help="Use enhanced multi-layer classification head",
+    )
+    
     # Common training overrides
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default=None,
+        help="Override model name (default: auto-generated based on dataset and configuration)",
+    )
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -654,6 +718,22 @@ def main():
     )
 
     # Apply overrides
+    if args.model_name is not None:
+        config["--model_name"] = args.model_name
+    if args.hidden_size is not None:
+        config["--hidden_size"] = str(args.hidden_size)
+        # Adjust intermediate size proportionally
+        config["--intermediate_size"] = str(args.hidden_size * 4)
+    if args.num_layers is not None:
+        config["--num_hidden_layers"] = str(args.num_layers)
+    if args.num_heads is not None:
+        config["--num_attention_heads"] = str(args.num_heads)
+    if args.use_focal_loss:
+        config["--use_focal_loss"] = True
+        config["--focal_alpha"] = args.focal_alpha
+        config["--focal_gamma"] = args.focal_gamma
+    if args.enhanced_classifier:
+        config["--enhanced_classifier"] = True
     if args.batch_size is not None:
         config["--batch_size"] = str(args.batch_size)
     if args.accumulate_grad_batches is not None:
@@ -681,10 +761,19 @@ def main():
     print(f"🎯 MLM: {'Enabled' if mlm_enabled else 'Disabled'}")
     print(f"✂️  Splits: {args.splits}")
     print(f"🔄 Mode: {'Fine-tuning' if is_finetune else 'Training'}")
+    if args.use_focal_loss:
+        print(f"🎯 Focal Loss: Enabled (α={args.focal_alpha}, γ={args.focal_gamma})")
+    else:
+        print(f"🎯 Loss: Standard Cross-Entropy")
+    if args.enhanced_classifier:
+        print(f"🧠 Classifier: Enhanced Multi-layer with Multi-scale Features")
+    else:
+        print(f"🧠 Classifier: Simple Linear")
     if is_finetune:
         print(f"📁 Checkpoint: {args.resume_from_checkpoint}")
         print(f"🧊 Encoder: {'Frozen' if args.freeze_encoder else 'Trainable'}")
     print(f"📁 CSV Path: {config['--csv_path']}")
+    print(f"📝 Model Name: {config['--model_name']}")
     print(f"🧮 Batch size: {config['--batch_size']} x accumulate {config['--accumulate_grad_batches']} (effective {int(config['--batch_size']) * int(config['--accumulate_grad_batches'])})")
     print(f"⏱  Max epochs: {config['--max_epochs']}")
     print("=" * 70)
